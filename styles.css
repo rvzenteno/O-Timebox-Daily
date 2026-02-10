@@ -1,0 +1,247 @@
+/* TimeBox Manager Plugin Styles */
+
+/* Enhanced TimeBox note styling */
+.timebox-note {
+    font-family: var(--font-text);
+}
+
+/* Focus section styling */
+.markdown-preview-view h2:has(+ *):where(:contains("Today's Focus"), :contains("🎯")) {
+    color: var(--text-accent);
+    border-bottom: 2px solid var(--text-accent);
+    padding-bottom: 0.5em;
+}
+
+/* Time blocks styling */
+.markdown-preview-view h2:contains("Time Blocks"),
+.markdown-preview-view h2:contains("⏰") {
+    color: var(--text-normal);
+    margin-top: 2em;
+}
+
+/* Individual time block headers */
+.markdown-preview-view h3:contains("Morning"),
+.markdown-preview-view h3:contains("Afternoon"),
+.markdown-preview-view h3:contains("Evening") {
+    background: var(--background-secondary);
+    padding: 0.5em 1em;
+    border-left: 4px solid var(--interactive-accent);
+    margin: 1em 0;
+}
+
+/* Tasks section */
+.markdown-preview-view h2:contains("Tasks"),
+.markdown-preview-view h2:contains("📋") {
+    color: var(--text-normal);
+    margin-top: 2em;
+}
+
+/* Brain Dump section */
+.markdown-preview-view h2:contains("Brain Dump"),
+.markdown-preview-view h2:contains("🧠") {
+    color: var(--text-muted);
+    border-bottom: 1px dashed var(--text-faint);
+    padding-bottom: 0.5em;
+}
+
+/* Completed section styling */
+.markdown-preview-view h2:contains("Completed Today"),
+.markdown-preview-view h2:contains("✅") {
+    color: var(--text-success);
+    background: var(--background-secondary);
+    padding: 0.5em 1em;
+    border-radius: 4px;
+    margin-top: 2em;
+}
+
+/* Rollover section styling */
+.markdown-preview-view h2:contains("Rolled Over"),
+.markdown-preview-view h2:contains("🔄") {
+    background: var(--background-modifier-warning);
+    padding: 0.5em 1em;
+    border-left: 4px solid var(--text-warning);
+    margin: 1.5em 0;
+}
+
+/* Task checkbox styling */
+.markdown-preview-view .task-list-item {
+    margin: 0.5em 0;
+}
+
+.markdown-preview-view .task-list-item-checkbox {
+    margin-right: 0.5em;
+}
+
+/* Completed task styling */
+.markdown-preview-view .task-list-item.is-checked {
+    opacity: 0.6;
+    text-decoration: line-through;
+}
+
+/* Priority indicators (if using tags) */
+.tag[href="#urgent"],
+.tag[href="#high"] {
+    background: var(--background-modifier-error);
+    color: var(--text-on-accent);
+}
+
+.tag[href="#important"],
+.tag[href="#medium"] {
+    background: var(--background-modifier-warning);
+    color: var(--text-normal);
+}
+
+.tag[href="#low"] {
+    background: var(--background-secondary);
+    color: var(--text-muted);
+}
+
+/* Horizontal dividers */
+.markdown-preview-view hr {
+    margin: 2em 0;
+    border: none;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+/* Better spacing for TimeBox sections */
+.markdown-preview-view .timebox-note h2 {
+    margin-top: 2.5em;
+    margin-bottom: 1em;
+}
+
+.markdown-preview-view .timebox-note h3 {
+    margin-top: 1.5em;
+    margin-bottom: 0.75em;
+}
+
+/* Quote/comment blocks in TimeBox */
+.markdown-preview-view blockquote {
+    border-left: 4px solid var(--interactive-accent);
+    padding-left: 1em;
+    margin: 1em 0;
+    font-style: italic;
+    color: var(--text-muted);
+}
+
+/* Code blocks for tracking metrics */
+.markdown-preview-view code {
+    background: var(--background-secondary);
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-size: 0.9em;
+}
+
+/* Tables in TimeBox (for tracking) */
+.markdown-preview-view table {
+    margin: 1em 0;
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.markdown-preview-view table th {
+    background: var(--background-secondary);
+    padding: 0.5em;
+    text-align: left;
+    border-bottom: 2px solid var(--background-modifier-border);
+}
+
+.markdown-preview-view table td {
+    padding: 0.5em;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* Print styling for TimeBox notes */
+@media print {
+    .timebox-note {
+        font-size: 11pt;
+        line-height: 1.5;
+    }
+    
+    .timebox-note h1 {
+        font-size: 18pt;
+        page-break-after: avoid;
+    }
+    
+    .timebox-note h2 {
+        font-size: 14pt;
+        page-break-after: avoid;
+        margin-top: 1em;
+    }
+    
+    .timebox-note h3 {
+        font-size: 12pt;
+        page-break-after: avoid;
+    }
+    
+    .task-list-item {
+        page-break-inside: avoid;
+    }
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+    .markdown-preview-view h2 {
+        font-size: 1.3em;
+    }
+    
+    .markdown-preview-view h3 {
+        font-size: 1.1em;
+        padding: 0.4em 0.8em;
+    }
+}
+
+/* Dark mode specific adjustments */
+.theme-dark {
+    /* Enhance contrast for better readability */
+}
+
+.theme-dark .markdown-preview-view h2:contains("🎯") {
+    border-bottom-color: var(--color-accent);
+}
+
+.theme-dark .markdown-preview-view h3:contains("Morning"),
+.theme-dark .markdown-preview-view h3:contains("Afternoon"),
+.theme-dark .markdown-preview-view h3:contains("Evening") {
+    background: var(--background-primary-alt);
+}
+
+/* Light mode specific adjustments */
+.theme-light .markdown-preview-view h2:contains("Completed Today") {
+    background: rgba(46, 204, 113, 0.1);
+}
+
+.theme-light .markdown-preview-view h2:contains("Rolled Over") {
+    background: rgba(241, 196, 15, 0.1);
+}
+
+/* Animation for newly created TimeBox */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.workspace-leaf-content[data-type="markdown"] .view-content:has(.timebox-note) {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Settings tab styling */
+.timebox-settings-container {
+    padding: 1em;
+}
+
+.timebox-settings-container .setting-item {
+    margin-bottom: 1.5em;
+}
+
+.timebox-settings-container textarea {
+    width: 100%;
+    min-height: 400px;
+    font-family: var(--font-monospace);
+    font-size: 0.9em;
+}
