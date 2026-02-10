@@ -323,5 +323,65 @@ class TimeBoxSettingTab extends PluginSettingTab {
                 text.inputEl.rows = 15;
                 text.inputEl.cols = 50;
             });
+
+        // Donation section
+        containerEl.createEl('h2', { text: 'Support This Plugin' });
+        
+        const donationDesc = containerEl.createEl('p', {
+            text: 'If you find TimeBox Daily helpful, please consider supporting its development:'
+        });
+        donationDesc.style.marginBottom = '15px';
+
+        // PayPal
+        new Setting(containerEl)
+            .setName('💝 Support via PayPal')
+            .setDesc('One-time or recurring donations')
+            .addButton(button => button
+                .setButtonText('Donate with PayPal')
+                .onClick(() => {
+                    window.open('https://www.paypal.com/paypalme/robertozenteno', '_blank');
+                }));
+
+        // USDC (Base Network)
+        new Setting(containerEl)
+            .setName('💎 USDC (Base Network)')
+            .setDesc('Base Network address')
+            .addButton(button => button
+                .setButtonText('Copy Address')
+                .onClick(() => {
+                    navigator.clipboard.writeText('0x8A0109dd87C8FdbE28F8B5E694D4AAbfb8a57F55');
+                    new Notice('USDC address copied to clipboard!');
+                }))
+            .addExtraButton(button => button
+                .setIcon('info')
+                .setTooltip('0x8A0109dd87C8FdbE28F8B5E694D4AAbfb8a57F55')
+                .onClick(() => {
+                    new Notice('USDC (Base): 0x8A0109dd87C8FdbE28F8B5E694D4AAbfb8a57F55', 8000);
+                }));
+
+        // USDT (Tron TRC-20)
+        new Setting(containerEl)
+            .setName('💰 USDT (Tron TRC-20)')
+            .setDesc('Tron Network address')
+            .addButton(button => button
+                .setButtonText('Copy Address')
+                .onClick(() => {
+                    navigator.clipboard.writeText('TYP5T4b6RrD8ESb8fBPN4dwHf4FZYxxx3H');
+                    new Notice('USDT address copied to clipboard!');
+                }))
+            .addExtraButton(button => button
+                .setIcon('info')
+                .setTooltip('TYP5T4b6RrD8ESb8fBPN4dwHf4FZYxxx3H')
+                .onClick(() => {
+                    new Notice('USDT (TRC-20): TYP5T4b6RrD8ESb8fBPN4dwHf4FZYxxx3H', 8000);
+                }));
+
+        // Thank you message
+        const thankYouMsg = containerEl.createEl('p', {
+            text: '🙏 Thank you for your support! Every donation helps maintain and improve TimeBox Daily.'
+        });
+        thankYouMsg.style.marginTop = '15px';
+        thankYouMsg.style.fontStyle = 'italic';
+        thankYouMsg.style.color = 'var(--text-muted)';
     }
 }

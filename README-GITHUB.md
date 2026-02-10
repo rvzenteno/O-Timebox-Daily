@@ -220,6 +220,18 @@ If you find this plugin helpful, please consider:
 - 💡 Suggesting new features
 - 🔀 Contributing code
 
+### 💝 Donations
+
+Your support helps maintain and improve TimeBox Daily!
+
+**PayPal**: [paypal.me/robertozenteno](https://www.paypal.com/paypalme/robertozenteno)
+
+**USDC (Base Network)**: `0x8A0109dd87C8FdbE28F8B5E694D4AAbfb8a57F55`
+
+**USDT (Tron TRC-20)**: `TYP5T4b6RrD8ESb8fBPN4dwHf4FZYxxx3H`
+
+Thank you for your support! 🙏
+
 ---
 
 **Note**: This plugin is in active development. While it's stable for daily use, expect occasional updates and improvements!
