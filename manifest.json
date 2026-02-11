@@ -2,9 +2,9 @@
   "id": "timebox-daily",
   "name": "TimeBox Daily",
   "version": "1.2.1",
-  "minAppVersion": "0.15.0",
-  "description": "Automatic daily TimeBox system with smart 14-day lookback and duplicate-free task aggregation",
-  "author": "Victor",
-  "authorUrl": "",
+  "minAppVersion": "1.5.0",
+  "description": "Smart daily timeboxing with automatic task rollover and structured planning.",
+  "author": "Victor Zenteno",
+  "authorUrl": "https://github.com/rvzenteno",
   "isDesktopOnly": false
 }
