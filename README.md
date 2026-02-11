@@ -1,288 +1,250 @@
-# TimeBox Manager for Obsidian
+# TimeBox Daily
 
-A comprehensive time management plugin for Obsidian that implements the TimeBox methodology. Stay focused, productive, and organized by managing your time in structured blocks with automatic task rollover and daily planning.
+**Smart daily timeboxing for Obsidian.**  
+Plan your day in structured time blocks, automatically roll over unfinished tasks, and stay focused without manual setup.
 
-## 🎯 Features
+TimeBox Daily creates a consistent daily planning system inside your vault using a practical TimeBox methodology.
 
-- **Auto-Open on Startup**: Automatically opens today's TimeBox when you launch Obsidian
-- **Daily TimeBox Creation**: Creates structured daily notes with time blocks, tasks, and brain dump sections
-- **Smart Task Rollover**: Automatically moves incomplete tasks from previous days to today
-- **Brain Dump Tracking**: Keeps track of unprocessed thoughts and ideas across days
-- **Customizable Templates**: Fully customizable daily template to match your workflow
-- **Calendar Integration**: Date-based file naming for easy navigation and search
-- **Quick Access**: Ribbon icon and command palette shortcuts
+---
+
+## ✨ What It Does
+
+TimeBox Daily helps you:
+
+- Automatically create structured daily TimeBox notes
+- Open today's TimeBox when Obsidian starts
+- Roll over incomplete tasks intelligently
+- Maintain a persistent Brain Dump across days
+- Plan your day in clear time blocks
+- Customize your daily template
+- Quickly access today’s plan from the ribbon or command palette
+
+It is designed for users who want structure without friction.
+
+---
+
+## 📸 How It Works
+
+Each day, the plugin creates (or opens) a note like:
+
+TimeBox - March 12, 2026
+
+Inside, you'll have:
+
+- 🎯 Today's Focus
+- ⏰ Time Blocks (Morning / Afternoon / Evening)
+- 📋 Tasks
+- 🧠 Brain Dump
+- 📝 Notes & Reflections
+- ✅ Completed Today
+
+Unfinished tasks automatically move to the next day.
+
+No manual copying. No daily setup.
+
+---
 
 ## 📦 Installation
+
+### Install from Community Plugins (Recommended)
+
+1. Open Settings → Community Plugins
+2. Disable Safe Mode
+3. Click Browse
+4. Search for TimeBox Daily
+5. Click Install
+6. Enable the plugin
+
+---
 
 ### Manual Installation
 
 1. Download the latest release files:
-   - `main.js`
-   - `manifest.json`
-   - `styles.css` (if available)
+   - main.js
+   - manifest.json
+   - styles.css
 
-2. Create a folder called `timebox-manager` in your vault's `.obsidian/plugins/` directory
+2. Create a folder in your vault:
 
-3. Copy the downloaded files into the `timebox-manager` folder
+.obsidian/plugins/timebox-daily
 
-4. Reload Obsidian
+3. Copy the files into that folder.
 
-5. Enable the plugin in Settings → Community Plugins
+4. Reload Obsidian and enable the plugin.
 
-### Development Installation
+---
 
-1. Clone this repository into your vault's `.obsidian/plugins/` folder:
-   ```bash
-   cd /path/to/your/vault/.obsidian/plugins
-   git clone https://github.com/yourusername/obsidian-timebox-manager.git timebox-manager
-   cd timebox-manager
-   ```
+## 🚀 Getting Started
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+1. Enable the plugin.
+2. A TimeBox folder will be created automatically (configurable).
+3. Restart Obsidian or run the command:
 
-3. Build the plugin:
-   ```bash
-   npm run build
-   ```
+Open Today's TimeBox
 
-4. Reload Obsidian and enable the plugin
+4. Start planning your day.
 
-## 🚀 Usage
+---
 
-### Getting Started
+## 🗓 Daily Workflow
 
-1. After enabling the plugin, it will automatically create a TimeBox folder in your vault
-2. Each time you start Obsidian, today's TimeBox will open automatically
-3. Start filling in your time blocks, tasks, and brain dump items
+### Morning
+- Open Obsidian
+- Review rolled-over tasks
+- Set your #1 focus
+- Plan your time blocks
 
-### Daily Workflow
+### During the Day
+- Check off tasks
+- Add new items to Brain Dump
+- Adjust time blocks as needed
 
-**Morning:**
-1. Open Obsidian (today's TimeBox opens automatically)
-2. Review rolled-over tasks from yesterday
-3. Set your #1 focus for the day
-4. Plan your time blocks
-5. Add specific tasks
+### End of Day
+- Leave incomplete tasks unchecked
+- Reflect in Notes
+- Tomorrow’s note will automatically include unfinished items
 
-**Throughout the Day:**
-- Check off tasks as you complete them
-- Add new tasks or thoughts to the Brain Dump section
-- Update your time blocks as needed
+---
 
-**End of Day:**
-- Move completed tasks to the "Completed Today" section
-- Leave incomplete tasks unchecked (they'll rollover tomorrow)
-- Reflect on your day in the Notes section
+## 🧠 Smart Task Rollover
 
-### Commands
+TimeBox Daily:
 
-Access these from the Command Palette (Ctrl/Cmd + P):
+- Moves incomplete tasks forward
+- Prevents duplicates
+- Keeps completed tasks archived
+- Preserves Brain Dump continuity
 
-- **Open Today's TimeBox**: Opens or creates today's TimeBox note
-- **Rollover Incomplete Tasks**: Manually trigger task rollover from previous day
+You can also trigger rollover manually via the Command Palette.
 
-### Ribbon Icon
-
-Click the calendar-check icon in the left ribbon to quickly open today's TimeBox.
+---
 
 ## ⚙️ Settings
 
 ### TimeBox Folder
-- **Default**: `TimeBox`
-- **Description**: Location where all TimeBox notes will be stored
-- **Tip**: Use a subfolder like `Daily/TimeBox` for organization
+Choose where daily notes are stored.  
+Default: TimeBox
 
-### Auto-open on Startup
-- **Default**: Enabled
-- **Description**: Automatically opens today's TimeBox when Obsidian launches
-- **Use Case**: Perfect for starting your day with intention
+---
+
+### Auto-Open on Startup
+Automatically opens today's TimeBox when Obsidian launches.
+
+---
 
 ### Rollover Incomplete Tasks
-- **Default**: Enabled
-- **Description**: Automatically moves incomplete tasks and brain dump items from yesterday
-- **Note**: Tasks in the "Completed Today" section won't be rolled over
+Automatically carries forward unfinished tasks and Brain Dump items.
+
+---
 
 ### Template Customization
-Customize your daily template to fit your needs. The default template includes:
-- Today's Focus (your #1 priority)
-- Time Blocks (Morning, Afternoon, Evening)
-- Tasks section
-- Brain Dump section
-- Notes & Reflections
-- Completed Today section
 
-**Template Variables:**
-- `{{date}}`: Replaced with the current date in "MMMM D, YYYY" format
+You can fully customize your daily template.
 
-## 📋 Template Structure
+Default structure:
 
-The default template follows the TimeBox methodology:
-
-```markdown
 # TimeBox - {{date}}
 
 ## 🎯 Today's Focus
-<!-- Your #1 priority -->
 
 ## ⏰ Time Blocks
-### Morning (8:00 AM - 12:00 PM)
-- [ ] 
+### Morning
+- [ ]
 
-### Afternoon (1:00 PM - 5:00 PM)
-- [ ] 
+### Afternoon
+- [ ]
 
-### Evening (6:00 PM - 9:00 PM)
-- [ ] 
+### Evening
+- [ ]
 
 ## 📋 Tasks
-- [ ] 
+- [ ]
 
 ## 🧠 Brain Dump
-- 
 
 ## 📝 Notes & Reflections
 
 ## ✅ Completed Today
-```
 
-## 🎨 Customization Tips
+Available variable:
 
-### Custom Time Blocks
-Adjust time blocks to match your schedule:
-```markdown
-### Deep Work (6:00 AM - 9:00 AM)
-### Meetings (9:00 AM - 12:00 PM)
-### Creative Time (1:00 PM - 4:00 PM)
-### Admin (4:00 PM - 5:00 PM)
-```
+{{date}}
 
-### Adding Sections
-Add custom sections to your template:
-```markdown
-## 💡 Ideas
-## 🏋️ Health & Wellness
-## 📚 Learning
-## 🎯 Weekly Goals
-```
+---
 
-### Integration with Other Plugins
-- **Dataview**: Query your TimeBox notes for analytics
-- **Calendar**: Visualize your TimeBox timeline
-- **Daily Notes**: Works alongside core Daily Notes plugin
-- **Tasks**: Enhanced task management and queries
+## 🔌 Works Well With
 
-## 🔧 Development
+- Dataview – Analyze productivity patterns
+- Tasks – Advanced task querying
+- Calendar – Visual navigation
+- Daily Notes (Core Plugin) – Complementary workflows
 
-### Building the Plugin
+---
 
-```bash
-# Install dependencies
+## 🛠 Development
+
+Repository:
+https://github.com/rvzenteno/O-Timebox-Daily
+
+### Build
+
 npm install
+npm run build
 
-# Development build with watch mode
+### Development Mode
+
 npm run dev
 
-# Production build
-npm run build
-```
-
-### Project Structure
-
-```
-timebox-plugin/
-├── main.ts              # Main plugin code
-├── manifest.json        # Plugin metadata
-├── package.json         # Node dependencies
-├── tsconfig.json        # TypeScript configuration
-├── esbuild.config.mjs   # Build configuration
-├── version-bump.mjs     # Version management
-└── versions.json        # Version history
-```
+---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome.
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+2. Create a feature branch
+3. Commit changes
+4. Open a Pull Request
 
-## 🌟 Support This Plugin
+---
 
-If you find TimeBox Daily helpful, please consider supporting its development:
+## 💙 Support the Project
 
-### PayPal
-[![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.com/paypalme/robertozenteno)
+If TimeBox Daily improves your workflow, you can:
 
-**One-time or recurring donations**: [paypal.me/robertozenteno](https://www.paypal.com/paypalme/robertozenteno)
-
-### Cryptocurrency
-
-**USDC (Base Network)**
-```
-0x8A0109dd87C8FdbE28F8B5E694D4AAbfb8a57F55
-```
-
-**USDT (Tron TRC-20)**
-```
-TYP5T4b6RrD8ESb8fBPN4dwHf4FZYxxx3H
-```
-
-### Other Ways to Support
-- ⭐ Star this repository
-- 🐛 Report bugs and suggest features
+- ⭐ Star the repository
+- 🐛 Report issues
 - 🔀 Contribute code
-- 📢 Share with others who might find it useful
+- 📢 Share it with others
 
-Thank you for your support! Every contribution helps maintain and improve TimeBox Daily. 🙏
+You may also support development via PayPal:
+
+https://www.paypal.com/paypalme/robertozenteno
 
 ---
 
 ## 📝 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- Inspired by the TimeBox time management methodology
-- Built for the Obsidian community
-- Thanks to all contributors and users
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/yourusername/obsidian-timebox-manager/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/obsidian-timebox-manager/discussions)
-- **Obsidian Forum**: [Plugin Thread](https://forum.obsidian.md)
-
-## 🗺️ Roadmap
-
-- [ ] Weekly and monthly TimeBox views
-- [ ] Statistics and productivity analytics
-- [ ] Time tracking integration
-- [ ] Templates library
-- [ ] Mobile optimization
-- [ ] Pomodoro timer integration
-- [ ] Task priority system
-- [ ] Calendar view for TimeBox notes
-- [ ] Export functionality
-
-## 📊 Version History
-
-### 1.0.0 (Current)
-- Initial release
-- Auto-open on startup
-- Task rollover functionality
-- Brain dump tracking
-- Customizable templates
-- Settings panel
+MIT License  
+See LICENSE file for details.
 
 ---
 
-**Made with ❤️ for productivity enthusiasts**
+## 📌 Roadmap
 
-If you find this plugin helpful, consider giving it a star on GitHub!
+Planned improvements:
+
+- Weekly & Monthly TimeBox views
+- Productivity analytics
+- Time tracking integration
+- Pomodoro support
+- Priority system
+- Calendar visualization
+- Export functionality
+
+---
+
+## Why TimeBox Daily?
+
+Most daily note systems require manual setup.  
+TimeBox Daily enforces structure automatically — so you can focus on execution, not organization.
