@@ -30,7 +30,7 @@ export default class TimeBoxPlugin extends Plugin {
         // Add command
         this.addCommand({
             id: 'open-today-timebox',
-            name: 'Open today\'s TimeBox',
+            name: 'Open today\'s timebox',
             callback: async () => {
                 await this.openTodayTimeBox();
             }
@@ -47,10 +47,10 @@ export default class TimeBoxPlugin extends Plugin {
 
         // Auto-open on startup if enabled
         if (this.settings.autoOpenOnStartup) {
-            this.app.workspace.onLayoutReady(async () => {
-                await this.openTodayTimeBox();
-            });
-        }
+this.app.workspace.onLayoutReady(() => {
+            void this.openTodayTimeBox();
+        });
+}
 
         // Add settings tab
         this.addSettingTab(new TimeBoxSettingTab(this.app, this));
@@ -91,14 +91,16 @@ export default class TimeBoxPlugin extends Plugin {
             // Create today's file
             const content = await this.createTodayTimeBoxContent(today);
             file = await this.app.vault.create(todayPath, content);
-            new Notice('Created today\'s TimeBox');
+            new Notice('Created today\'s timebox');
         }
 
         // Open the file
         const leaf = this.app.workspace.getLeaf(false);
-        await leaf.openFile(file as TFile);
-    }
+if (file instanceof TFile) {
+    await leaf.openFile(file);
+}
 
+}
     async createTodayTimeBoxContent(today: moment.Moment): Promise<string> {
         let content = `# TimeBox - ${today.format('dddd, MMMM Do YYYY')}\n\n`;
 
@@ -119,10 +121,17 @@ export default class TimeBoxPlugin extends Plugin {
         const today = moment();
         const todayPath = this.getTimeBoxPath(today);
         
-        let file = this.app.vault.getAbstractFileByPath(todayPath) as TFile;
+        const abstractFile = this.app.vault.getAbstractFileByPath(todayPath);
+
+if (!(abstractFile instanceof TFile)) {
+    return;
+}
+
+const file = abstractFile;
+
         
         if (!file) {
-            new Notice('Today\'s TimeBox doesn\'t exist yet. Opening it will carry forward items.');
+            new Notice('Today\'s timebox doesn\'t exist yet. Opening it will carry forward items.');
             await this.openTodayTimeBox();
             return;
         }
@@ -130,7 +139,7 @@ export default class TimeBoxPlugin extends Plugin {
         const carriedContent = await this.getCarriedForwardContent();
         
         if (!carriedContent) {
-            new Notice('No incomplete items to carry forward');
+            new Notice('No incomplete items to carry forward.');
             return;
         }
 
@@ -138,7 +147,7 @@ export default class TimeBoxPlugin extends Plugin {
         
         // Check if content was already carried forward
         if (currentContent.includes('## 📤 Carried Forward')) {
-            new Notice('Items already carried forward today');
+            new Notice('Items already carried forward today.');
             return;
         }
 
@@ -150,7 +159,7 @@ export default class TimeBoxPlugin extends Plugin {
             lines.splice(titleIndex + 1, 0, '', carriedContent, '', '---', '');
             const newContent = lines.join('\n');
             await this.app.vault.modify(file, newContent);
-            new Notice('Carried forward incomplete items');
+            new Notice('Carried forward incomplete items.');
         }
     }
 
@@ -163,7 +172,11 @@ export default class TimeBoxPlugin extends Plugin {
         for (let daysBack = 1; daysBack <= maxDaysBack; daysBack++) {
             const pastDate = moment().subtract(daysBack, 'days');
             const pastPath = this.getTimeBoxPath(pastDate);
-            const pastFile = this.app.vault.getAbstractFileByPath(pastPath) as TFile;
+const abstractPastFile = this.app.vault.getAbstractFileByPath(pastPath);
+if (!(abstractPastFile instanceof TFile)) {
+    continue;
+}
+const pastFile = abstractPastFile;
 
             if (!pastFile) {
                 // No file for this day, continue to previous day
@@ -266,10 +279,12 @@ class TimeBoxSettingTab extends PluginSettingTab {
 
         containerEl.empty();
 
-        containerEl.createEl('h2', { text: 'TimeBox Daily Settings' });
+        new Setting(containerEl)
+            .setName('TimeBox Daily settings')
+            .setHeading();
 
         new Setting(containerEl)
-            .setName('TimeBox folder')
+            .setName('Timebox folder')
             .setDesc('Folder where TimeBox files will be stored')
             .addText(text => text
                 .setPlaceholder('TimeBox')
@@ -310,7 +325,7 @@ class TimeBoxSettingTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
-            .setName('TimeBox template')
+            .setName('Timebox template')
             .setDesc('Default template for new TimeBox pages')
             .addTextArea(text => {
                 text
@@ -324,64 +339,5 @@ class TimeBoxSettingTab extends PluginSettingTab {
                 text.inputEl.cols = 50;
             });
 
-        // Donation section
-        containerEl.createEl('h2', { text: 'Support This Plugin' });
-        
-        const donationDesc = containerEl.createEl('p', {
-            text: 'If you find TimeBox Daily helpful, please consider supporting its development:'
-        });
-        donationDesc.style.marginBottom = '15px';
-
-        // PayPal
-        new Setting(containerEl)
-            .setName('💝 Support via PayPal')
-            .setDesc('One-time or recurring donations')
-            .addButton(button => button
-                .setButtonText('Donate with PayPal')
-                .onClick(() => {
-                    window.open('https://www.paypal.com/paypalme/robertozenteno', '_blank');
-                }));
-
-        // USDC (Base Network)
-        new Setting(containerEl)
-            .setName('💎 USDC (Base Network)')
-            .setDesc('Base Network address')
-            .addButton(button => button
-                .setButtonText('Copy Address')
-                .onClick(() => {
-                    navigator.clipboard.writeText('0x8A0109dd87C8FdbE28F8B5E694D4AAbfb8a57F55');
-                    new Notice('USDC address copied to clipboard!');
-                }))
-            .addExtraButton(button => button
-                .setIcon('info')
-                .setTooltip('0x8A0109dd87C8FdbE28F8B5E694D4AAbfb8a57F55')
-                .onClick(() => {
-                    new Notice('USDC (Base): 0x8A0109dd87C8FdbE28F8B5E694D4AAbfb8a57F55', 8000);
-                }));
-
-        // USDT (Tron TRC-20)
-        new Setting(containerEl)
-            .setName('💰 USDT (Tron TRC-20)')
-            .setDesc('Tron Network address')
-            .addButton(button => button
-                .setButtonText('Copy Address')
-                .onClick(() => {
-                    navigator.clipboard.writeText('TYP5T4b6RrD8ESb8fBPN4dwHf4FZYxxx3H');
-                    new Notice('USDT address copied to clipboard!');
-                }))
-            .addExtraButton(button => button
-                .setIcon('info')
-                .setTooltip('TYP5T4b6RrD8ESb8fBPN4dwHf4FZYxxx3H')
-                .onClick(() => {
-                    new Notice('USDT (TRC-20): TYP5T4b6RrD8ESb8fBPN4dwHf4FZYxxx3H', 8000);
-                }));
-
-        // Thank you message
-        const thankYouMsg = containerEl.createEl('p', {
-            text: '🙏 Thank you for your support! Every donation helps maintain and improve TimeBox Daily.'
-        });
-        thankYouMsg.style.marginTop = '15px';
-        thankYouMsg.style.fontStyle = 'italic';
-        thankYouMsg.style.color = 'var(--text-muted)';
     }
 }
