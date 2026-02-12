@@ -280,8 +280,7 @@ class TimeBoxSettingTab extends PluginSettingTab {
         containerEl.empty();
 
         new Setting(containerEl)
-            .setName('TimeBox Daily settings')
-            .setHeading();
+            .setName('Configuration').setHeading();
 
         new Setting(containerEl)
             .setName('Timebox folder')
