@@ -102,7 +102,7 @@ if (file instanceof TFile) {
 
 }
     async createTodayTimeBoxContent(today: moment.Moment): Promise<string> {
-        let content = `# TimeBox - ${today.format('dddd, MMMM Do YYYY')}\n\n`;
+        let content = `# Timebox - ${today.format('dddd, MMMM Do YYYY')}\n\n`;
 
         // Carry forward items from yesterday if enabled
         if (this.settings.carryForwardTasks || this.settings.carryForwardBrainDumps) {
@@ -153,7 +153,7 @@ const file = abstractFile;
 
         // Insert carried content after the title
         const lines = currentContent.split('\n');
-        const titleIndex = lines.findIndex(line => line.startsWith('# TimeBox'));
+        const titleIndex = lines.findIndex(line => line.startsWith('# Timebox'));
         
         if (titleIndex !== -1) {
             lines.splice(titleIndex + 1, 0, '', carriedContent, '', '---', '');
@@ -163,11 +163,37 @@ const file = abstractFile;
         }
     }
 
+    async wasTaskCompletedBetween(incompleteTaskText: string, daysBackFromOriginal: number): Promise<boolean> {
+        // Convert incomplete task to completed task format
+        const completedTaskText = incompleteTaskText.replace('- [ ]', '- [x]');
+
+        // Check all days between the original date and today (exclusive of original, inclusive of today)
+        for (let daysBack = daysBackFromOriginal - 1; daysBack >= 0; daysBack--) {
+            const checkDate = moment().subtract(daysBack, 'days');
+            const checkPath = this.getTimeBoxPath(checkDate);
+            const abstractCheckFile = this.app.vault.getAbstractFileByPath(checkPath);
+
+            if (!(abstractCheckFile instanceof TFile)) {
+                continue;
+            }
+
+            const checkFile = abstractCheckFile;
+            const content = await this.app.vault.read(checkFile);
+
+            // Check if the completed version of this task exists in this file
+            if (content.includes(completedTaskText)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     async getCarriedForwardContent(): Promise<string> {
         const incompleteTasks: string[] = [];
         const brainDumps: string[] = [];
         const maxDaysBack = 14;
-        
+
         // Search backwards up to 14 days to find incomplete tasks
         for (let daysBack = 1; daysBack <= maxDaysBack; daysBack++) {
             const pastDate = moment().subtract(daysBack, 'days');
@@ -223,7 +249,11 @@ const pastFile = abstractPastFile;
                     if (taskText.length > 6) { // Not empty
                         // Check for duplicates before adding
                         if (!incompleteTasks.includes(taskText)) {
-                            incompleteTasks.push(taskText);
+                            // Check if this task was completed on any day between pastDate and today
+                            const wasCompletedLater = await this.wasTaskCompletedBetween(taskText, daysBack);
+                            if (!wasCompletedLater) {
+                                incompleteTasks.push(taskText);
+                            }
                         }
                     }
                 }
@@ -284,7 +314,7 @@ class TimeBoxSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Timebox folder')
-            .setDesc('Folder where TimeBox files will be stored')
+            .setDesc('Folder where timebox files will be stored')
             .addText(text => text
                 .setPlaceholder('TimeBox')
                 .setValue(this.plugin.settings.timeBoxFolder)
@@ -295,7 +325,7 @@ class TimeBoxSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Auto-open on startup')
-            .setDesc('Automatically open today\'s TimeBox when Obsidian starts')
+            .setDesc('Automatically open today\'s timebox when Obsidian starts')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.autoOpenOnStartup)
                 .onChange(async (value) => {
@@ -325,7 +355,7 @@ class TimeBoxSettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Timebox template')
-            .setDesc('Default template for new TimeBox pages')
+            .setDesc('Default template for new timebox pages')
             .addTextArea(text => {
                 text
                     .setPlaceholder('Enter your template...')
