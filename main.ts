@@ -23,7 +23,7 @@ export default class TimeBoxPlugin extends Plugin {
         await this.loadSettings();
 
         // Add ribbon icon
-        this.addRibbonIcon('calendar-clock', 'Open Today\'s TimeBox', async () => {
+        this.addRibbonIcon('calendar-clock', 'Open today\'s timebox', async () => {
             await this.openTodayTimeBox();
         });
 
@@ -250,15 +250,15 @@ const pastFile = abstractPastFile;
             return '';
         }
 
-        let carriedContent = '## 📤 Carried Forward from Yesterday\n\n';
+        let carriedContent = '## 📤 Carried forward from yesterday\n\n';
 
         if (incompleteTasks.length > 0) {
-            carriedContent += '### Incomplete Tasks\n';
+            carriedContent += '### Incomplete tasks\n';
             carriedContent += incompleteTasks.join('\n') + '\n\n';
         }
 
         if (brainDumps.length > 0) {
-            carriedContent += '### Brain Dump Items\n';
+            carriedContent += '### Brain dump items\n';
             carriedContent += brainDumps.join('\n') + '\n';
         }
 
