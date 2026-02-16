@@ -316,7 +316,7 @@ class TimeBoxSettingTab extends PluginSettingTab {
             .setName('Timebox folder')
             .setDesc('Folder where timebox files will be stored')
             .addText(text => text
-                .setPlaceholder('TimeBox')
+                .setPlaceholder('Timebox')
                 .setValue(this.plugin.settings.timeBoxFolder)
                 .onChange(async (value) => {
                     this.plugin.settings.timeBoxFolder = value;
