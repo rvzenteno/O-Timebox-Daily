@@ -219,7 +219,7 @@ If TimeBox Daily improves your workflow, you can:
 
 You may also support development via PayPal:
 
-https://www.paypal.com/paypalme/robertozenteno
+[https://www.paypal.com/paypalme/robertozenteno](https://paypal.me/VictorZenteno)
 
 ---
 
