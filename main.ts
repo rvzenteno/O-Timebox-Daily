@@ -57,7 +57,8 @@ this.app.workspace.onLayoutReady(() => {
     }
 
     async loadSettings() {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+        const loadedData = await this.loadData();
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData as Partial<TimeBoxSettings> || {});
     }
 
     async saveSettings() {
@@ -318,9 +319,9 @@ class TimeBoxSettingTab extends PluginSettingTab {
             .addText(text => text
                 .setPlaceholder('Timebox')
                 .setValue(this.plugin.settings.timeBoxFolder)
-                .onChange(async (value) => {
+                .onChange((value) => {
                     this.plugin.settings.timeBoxFolder = value;
-                    await this.plugin.saveSettings();
+                    this.plugin.saveSettings().catch(console.error);
                 }));
 
         new Setting(containerEl)
@@ -328,9 +329,9 @@ class TimeBoxSettingTab extends PluginSettingTab {
             .setDesc('Automatically open today\'s timebox when Obsidian starts')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.autoOpenOnStartup)
-                .onChange(async (value) => {
+                .onChange((value) => {
                     this.plugin.settings.autoOpenOnStartup = value;
-                    await this.plugin.saveSettings();
+                    this.plugin.saveSettings().catch(console.error);
                 }));
 
         new Setting(containerEl)
@@ -338,9 +339,9 @@ class TimeBoxSettingTab extends PluginSettingTab {
             .setDesc('Automatically move unchecked tasks from yesterday to today')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.carryForwardTasks)
-                .onChange(async (value) => {
+                .onChange((value) => {
                     this.plugin.settings.carryForwardTasks = value;
-                    await this.plugin.saveSettings();
+                    this.plugin.saveSettings().catch(console.error);
                 }));
 
         new Setting(containerEl)
@@ -348,9 +349,9 @@ class TimeBoxSettingTab extends PluginSettingTab {
             .setDesc('Automatically move brain dump items from yesterday to today')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.carryForwardBrainDumps)
-                .onChange(async (value) => {
+                .onChange((value) => {
                     this.plugin.settings.carryForwardBrainDumps = value;
-                    await this.plugin.saveSettings();
+                    this.plugin.saveSettings().catch(console.error);
                 }));
 
         new Setting(containerEl)
@@ -360,9 +361,9 @@ class TimeBoxSettingTab extends PluginSettingTab {
                 text
                     .setPlaceholder('Enter your template...')
                     .setValue(this.plugin.settings.timeBoxTemplate)
-                    .onChange(async (value) => {
+                    .onChange((value) => {
                         this.plugin.settings.timeBoxTemplate = value;
-                        await this.plugin.saveSettings();
+                        this.plugin.saveSettings().catch(console.error);
                     });
                 text.inputEl.rows = 15;
                 text.inputEl.cols = 50;
