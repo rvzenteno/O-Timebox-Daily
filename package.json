@@ -1,7 +1,7 @@
 {
   "name": "timebox-daily",
-  "version": "1.2.3",
-  "description": "Automatic daily TimeBox system for Obsidian",
+  "version": "1.2.4",
+  "description": "Smart daily timeboxing with automatic task rollover and structured planning.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",

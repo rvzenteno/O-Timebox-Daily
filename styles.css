@@ -6,7 +6,7 @@
 }
 
 /* Focus section styling */
-.markdown-preview-view h2:has(+ *):where(:contains("Today's Focus"), :contains("🎯")) {
+.markdown-preview-view h2:where(:contains("Today's Focus"), :contains("🎯")) {
     color: var(--text-accent);
     border-bottom: 2px solid var(--text-accent);
     padding-bottom: 0.5em;
@@ -226,7 +226,7 @@
     }
 }
 
-.workspace-leaf-content[data-type="markdown"] .view-content:has(.timebox-note) {
+.workspace-leaf-content[data-type="markdown"] .view-content .timebox-note {
     animation: fadeIn 0.3s ease-out;
 }
 
