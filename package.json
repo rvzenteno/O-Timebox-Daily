@@ -1,6 +1,6 @@
 {
   "name": "timebox-daily",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "Smart daily timeboxing with automatic task rollover and structured planning.",
   "main": "main.js",
   "scripts": {
