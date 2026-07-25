@@ -1,5 +1,15 @@
 # Changelog - TimeBox Daily
 
+## [1.3.1] - 2026-07-25
+
+### Fixed
+- 🛠 **Linter & Type Safety**: Resolved all 119 linter warnings, unsafe parameter casts, and DOM element helper warnings
+- ⚡ **Obsidian API Compatibility**: Upgraded `minAppVersion` to `1.7.0` and replaced `revealLeaf` with `setActiveLeaf`
+- ⚙️ **Settings Search**: Added `getSettingDefinitions()` method to `TimeBoxSettingTab`
+- 🔒 **GitHub Release Provenance**: Enabled automated release asset overwriting and artifact attestations
+
+---
+
 ## [1.3.0] - 2026-07-25
 
 ### Added

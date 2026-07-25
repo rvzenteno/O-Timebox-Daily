@@ -44,4 +44,5 @@ jobs:
             main.js
             manifest.json
             styles.css
+          overwrite: true
           generate_release_notes: true
