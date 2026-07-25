@@ -1,5 +1,7 @@
-import { App, TFile, Notice } from 'obsidian';
-import moment from 'moment';
+import { App, TFile, Notice, moment } from 'obsidian';
+
+const getMoment = (inp?: unknown, fmt?: unknown, strict?: boolean): moment.Moment => 
+    (moment as unknown as (i?: unknown, f?: unknown, s?: boolean) => moment.Moment)(inp, fmt, strict);
 
 export interface ProjectTask {
     text: string;
@@ -148,7 +150,7 @@ export class ProjectManager {
 
         const template = `---
 type: project
-created: ${moment().format('YYYY-MM-DD')}
+created: ${getMoment().format('YYYY-MM-DD')}
 ---
 # 🌐 Project: ${sanitizedName}
 
@@ -172,7 +174,7 @@ created: ${moment().format('YYYY-MM-DD')}
         timeBoxFolder: string,
         dateFormat: string
     ): Promise<void> {
-        const today = moment();
+        const today = getMoment();
         const format = dateFormat || 'YYYY-MM-DD';
         const todayFileName = `${today.format(format)}.md`;
         const todayPath = `${timeBoxFolder}/${todayFileName}`;

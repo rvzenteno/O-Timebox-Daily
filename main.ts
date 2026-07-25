@@ -1,8 +1,10 @@
-import { App, Plugin, PluginSettingTab, Setting, TFile, Notice, AbstractInputSuggest, Editor, WorkspaceLeaf } from 'obsidian';
-import moment from 'moment';
+import { App, Plugin, PluginSettingTab, Setting, TFile, Notice, AbstractInputSuggest, Editor, WorkspaceLeaf, moment } from 'obsidian';
 import { ProjectManager } from './projectManager';
 import { ProjectDashboardView, TIMEBOX_PROJECT_VIEW_TYPE } from './projectDashboardView';
 import { ProjectSuggestModal } from './projectSuggestModal';
+
+const getMoment = (inp?: unknown, fmt?: unknown, strict?: boolean): moment.Moment => 
+    (moment as unknown as (i?: unknown, f?: unknown, s?: boolean) => moment.Moment)(inp, fmt, strict);
 
 export interface TimeBoxSettings {
     timeBoxFolder: string;
@@ -54,7 +56,7 @@ export default class TimeBoxPlugin extends Plugin {
 
         // Add ribbon icon for today's timebox
         this.addRibbonIcon('calendar-clock', 'Open today\'s timebox', async () => {
-            await this.openTimeBoxForDate(moment());
+            await this.openTimeBoxForDate(getMoment());
         });
 
         // Add ribbon icon for projects dashboard
@@ -67,7 +69,7 @@ export default class TimeBoxPlugin extends Plugin {
             id: 'open-today-timebox',
             name: 'Open today\'s timebox',
             callback: async () => {
-                await this.openTimeBoxForDate(moment());
+                await this.openTimeBoxForDate(getMoment());
             }
         });
 
@@ -75,7 +77,7 @@ export default class TimeBoxPlugin extends Plugin {
             id: 'open-yesterday-timebox',
             name: 'Open yesterday\'s timebox',
             callback: async () => {
-                await this.openTimeBoxForDate(moment().subtract(1, 'days'));
+                await this.openTimeBoxForDate(getMoment().subtract(1, 'days'));
             }
         });
 
@@ -83,7 +85,7 @@ export default class TimeBoxPlugin extends Plugin {
             id: 'open-tomorrow-timebox',
             name: 'Open tomorrow\'s timebox',
             callback: async () => {
-                await this.openTimeBoxForDate(moment().add(1, 'days'));
+                await this.openTimeBoxForDate(getMoment().add(1, 'days'));
             }
         });
 
@@ -184,11 +186,14 @@ export default class TimeBoxPlugin extends Plugin {
                         if (isDaily && cleanedText.includes('[[')) {
                             const linkMatches = Array.from(cleanedText.matchAll(/\[\[([^\]]+)\]\]/g));
                             for (const match of linkMatches) {
-                                const targetProject = this.projectManager.resolveProjectFile(match[1], this.settings.projectsFolder);
-                                if (targetProject) {
-                                    const baseTaskText = cleanedText.replace(/\[\[[^\]]+\]\]/g, '').trim();
-                                    if (baseTaskText.length > 1) {
-                                        await this.projectManager.addTaskToProject(targetProject, baseTaskText);
+                                const projectLink = match[1];
+                                if (typeof projectLink === 'string') {
+                                    const targetProject = this.projectManager.resolveProjectFile(projectLink, this.settings.projectsFolder);
+                                    if (targetProject) {
+                                        const baseTaskText = cleanedText.replace(/\[\[[^\]]+\]\]/g, '').trim();
+                                        if (baseTaskText.length > 1) {
+                                            await this.projectManager.addTaskToProject(targetProject, baseTaskText);
+                                        }
                                     }
                                 }
                             }
@@ -204,7 +209,7 @@ export default class TimeBoxPlugin extends Plugin {
                 if (file instanceof TFile && file.path.startsWith(this.settings.timeBoxFolder)) {
                     if (file.stat.size === 0) {
                         const dateStr = file.basename;
-                        const fileDate = moment(dateStr, this.settings.dateFormat, true);
+                        const fileDate = getMoment(dateStr, this.settings.dateFormat, true);
                         if (fileDate.isValid()) {
                             const content = await this.createTimeBoxContentForDate(fileDate);
                             await this.app.vault.modify(file, content);
@@ -218,7 +223,7 @@ export default class TimeBoxPlugin extends Plugin {
         // Auto-open on startup if enabled
         if (this.settings.autoOpenOnStartup) {
             this.app.workspace.onLayoutReady(() => {
-                void this.openTimeBoxForDate(moment());
+                void this.openTimeBoxForDate(getMoment());
                 void this.activateProjectDashboardView();
             });
         }
@@ -297,16 +302,16 @@ export default class TimeBoxPlugin extends Plugin {
 
         // Determine base date relative to active file, or default to today
         const activeFile = this.app.workspace.getActiveFile();
-        let baseDate = moment();
+        let baseDate = getMoment();
         if (activeFile && activeFile.path.startsWith(this.settings.timeBoxFolder)) {
             const dateStr = activeFile.basename;
-            const fileDate = moment(dateStr, this.settings.dateFormat, true);
+            const fileDate = getMoment(dateStr, this.settings.dateFormat, true);
             if (fileDate.isValid()) {
                 baseDate = fileDate;
             }
         }
 
-        const targetDate = moment(baseDate).add(1, 'days');
+        const targetDate = getMoment(baseDate).add(1, 'days');
         const targetPath = this.getTimeBoxPath(targetDate);
         await this.ensureTimeBoxFolder();
 
@@ -340,8 +345,8 @@ export default class TimeBoxPlugin extends Plugin {
     }
 
     async loadSettings() {
-        const loadedData = await this.loadData();
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData as Partial<TimeBoxSettings> || {});
+        const loadedData = (await this.loadData()) as Partial<TimeBoxSettings> | null;
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData || {});
     }
 
     async saveSettings() {
@@ -390,8 +395,8 @@ export default class TimeBoxPlugin extends Plugin {
         let content = `# Timebox - ${date.format(titleFormat)}\n\n`;
 
         if (this.settings.addNavigationLinks) {
-            const yesterdayDate = moment(date).subtract(1, 'days');
-            const tomorrowDate = moment(date).add(1, 'days');
+            const yesterdayDate = getMoment(date).subtract(1, 'days');
+            const tomorrowDate = getMoment(date).add(1, 'days');
             const yesterdayFileBase = this.getDateFileName(yesterdayDate).replace(/\.md$/, '');
             const tomorrowFileBase = this.getDateFileName(tomorrowDate).replace(/\.md$/, '');
             content += `[[${this.settings.timeBoxFolder}/${yesterdayFileBase}|◀ Yesterday]] | [[${this.settings.timeBoxFolder}/${tomorrowFileBase}|Tomorrow ▶]]\n\n`;
@@ -411,23 +416,23 @@ export default class TimeBoxPlugin extends Plugin {
         const format = this.settings.dateFormat || 'YYYY-MM-DD';
         
         // 1. Match {{date:FORMAT}}
-        templateContent = templateContent.replace(/\{\{date:([^}]+)\}\}/g, (match, customFormat) => {
+        templateContent = templateContent.replace(/\{\{date:([^}]+)\}\}/g, (_match, customFormat: string) => {
             return date.format(customFormat);
         });
         // 2. Match {{date}}
         templateContent = templateContent.replace(/\{\{date\}\}/g, date.format(format));
 
         // 3. Match {{yesterday:FORMAT}} and {{yesterday}}
-        templateContent = templateContent.replace(/\{\{yesterday:([^}]+)\}\}/g, (match, customFormat) => {
-            return moment(date).subtract(1, 'days').format(customFormat);
+        templateContent = templateContent.replace(/\{\{yesterday:([^}]+)\}\}/g, (_match, customFormat: string) => {
+            return getMoment(date).subtract(1, 'days').format(customFormat);
         });
-        templateContent = templateContent.replace(/\{\{yesterday\}\}/g, moment(date).subtract(1, 'days').format(format));
+        templateContent = templateContent.replace(/\{\{yesterday\}\}/g, getMoment(date).subtract(1, 'days').format(format));
 
         // 4. Match {{tomorrow:FORMAT}} and {{tomorrow}}
-        templateContent = templateContent.replace(/\{\{tomorrow:([^}]+)\}\}/g, (match, customFormat) => {
-            return moment(date).add(1, 'days').format(customFormat);
+        templateContent = templateContent.replace(/\{\{tomorrow:([^}]+)\}\}/g, (_match, customFormat: string) => {
+            return getMoment(date).add(1, 'days').format(customFormat);
         });
-        templateContent = templateContent.replace(/\{\{tomorrow\}\}/g, moment(date).add(1, 'days').format(format));
+        templateContent = templateContent.replace(/\{\{tomorrow\}\}/g, getMoment(date).add(1, 'days').format(format));
 
         // Carry forward items from yesterday if enabled
         if (this.settings.carryForwardTasks || this.settings.carryForwardBrainDumps) {
@@ -491,7 +496,7 @@ export default class TimeBoxPlugin extends Plugin {
     }
 
     async carryForwardFromYesterday(): Promise<void> {
-        const today = moment();
+        const today = getMoment();
         const todayPath = this.getTimeBoxPath(today);
         const abstractFile = this.app.vault.getAbstractFileByPath(todayPath);
 
@@ -560,7 +565,7 @@ export default class TimeBoxPlugin extends Plugin {
         const completedTaskText = incompleteTaskText.replace('- [ ]', '- [x]');
 
         for (let daysBack = daysBackFromOriginal - 1; daysBack >= 0; daysBack--) {
-            const checkDate = moment().subtract(daysBack, 'days');
+            const checkDate = getMoment().subtract(daysBack, 'days');
             const checkPath = this.getTimeBoxPath(checkDate);
             const abstractCheckFile = this.app.vault.getAbstractFileByPath(checkPath);
 
@@ -583,7 +588,7 @@ export default class TimeBoxPlugin extends Plugin {
         const maxDaysBack = 14;
 
         for (let daysBack = 1; daysBack <= maxDaysBack; daysBack++) {
-            const pastDate = moment().subtract(daysBack, 'days');
+            const pastDate = getMoment().subtract(daysBack, 'days');
             const pastPath = this.getTimeBoxPath(pastDate);
             const abstractPastFile = this.app.vault.getAbstractFileByPath(pastPath);
             if (!(abstractPastFile instanceof TFile)) {

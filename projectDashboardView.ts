@@ -136,7 +136,7 @@ export class ProjectDashboardView extends ItemView {
                     cls: `timebox-task-row ${task.completed ? 'is-completed' : ''}`
                 });
 
-                const checkbox = taskRow.createEl('input', { type: 'checkbox' }) as HTMLInputElement;
+                const checkbox = taskRow.createEl('input', { type: 'checkbox' });
                 checkbox.checked = task.completed;
                 checkbox.addEventListener('change', () => {
                     void (async () => {
@@ -180,7 +180,7 @@ export class ProjectDashboardView extends ItemView {
         const input = addRow.createEl('input', {
             type: 'text',
             placeholder: 'Add task to project...'
-        }) as HTMLInputElement;
+        });
 
         const addBtn = addRow.createEl('button', { text: 'Add' });
         const handleAdd = async () => {
