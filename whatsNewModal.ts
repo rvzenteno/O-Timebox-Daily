@@ -81,13 +81,6 @@ export class WhatsNewModal extends Modal {
         });
         paypalBtn.setAttribute('target', '_blank');
 
-        const coffeeBtn = buttonsContainer.createEl('a', {
-            cls: 'timebox-support-btn timebox-coffee-btn',
-            text: '☕ Buy Me a Coffee',
-            href: 'https://buymeacoffee.com/victorzenteno'
-        });
-        coffeeBtn.setAttribute('target', '_blank');
-
         const githubBtn = buttonsContainer.createEl('a', {
             cls: 'timebox-support-btn timebox-github-btn',
             text: '⭐ Star on GitHub',
