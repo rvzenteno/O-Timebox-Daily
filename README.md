@@ -11,13 +11,14 @@ TimeBox Daily creates a consistent daily planning system inside your vault using
 
 TimeBox Daily helps you:
 
-- Automatically create structured daily TimeBox notes
-- Open today's TimeBox when Obsidian starts
-- Roll over incomplete tasks intelligently
-- Maintain a persistent Brain Dump across days
-- Plan your day in clear time blocks
-- Customize your daily template
-- Quickly access today’s plan from the ribbon or command palette
+- **Multi-Project Tracking & Sidebar Dashboard**: Track projects with visual progress bars and backlogs inside dedicated project notes (`TimeBox/Projects/`) and a custom sidebar view.
+- **Bi-Directional Task Sync**: Automatically sync task completion status (`- [x]`) between Daily Notes, Project Notes, and the Projects Dashboard.
+- **One-Click Task Injection (`[+ Today]`)**: Push project backlog tasks into today's TimeBox note with a single click.
+- **Automatic `[[Project]]` Link Parsing**: Type `- [ ] Task [[ProjectName]]` in daily notes to auto-link and update project notes.
+- **Hide/Show Completed Tasks (`👁`)**: Toggle finished tasks on or off in your sidebar project cards.
+- **Smart Task Rollover**: Automatically carry forward unfinished tasks and Brain Dump items across days.
+- **Structured Daily Notes**: Auto-create daily timeboxing templates with focus areas, time blocks, and notes.
+- **Auto-Open on Startup**: Automatically open today's TimeBox and Projects Dashboard when Obsidian launches.
 
 It is designed for users who want structure without friction.
 

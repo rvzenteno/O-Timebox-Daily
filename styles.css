@@ -245,3 +245,168 @@
     font-family: var(--font-monospace);
     font-size: 0.9em;
 }
+
+/* Sidebar Dashboard View Styling */
+.timebox-dashboard-container {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+}
+
+.timebox-dashboard-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--background-modifier-border);
+    padding-bottom: 8px;
+}
+
+.timebox-dashboard-header h4 {
+    margin: 0;
+    font-size: 1.1em;
+}
+
+.timebox-dashboard-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.timebox-btn-primary {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 0.85em;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.timebox-btn-primary:hover {
+    background-color: var(--interactive-accent-hover);
+}
+
+.timebox-project-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.timebox-project-card {
+    background-color: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.timebox-project-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.timebox-project-title {
+    font-weight: 600;
+    font-size: 1em;
+    color: var(--text-accent);
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.timebox-project-title:hover {
+    text-decoration: underline;
+}
+
+.timebox-project-meta {
+    font-size: 0.78em;
+    color: var(--text-muted);
+}
+
+.timebox-progress-container {
+    height: 6px;
+    background-color: var(--background-modifier-border);
+    border-radius: 3px;
+    overflow: hidden;
+    width: 100%;
+}
+
+.timebox-progress-fill {
+    height: 100%;
+    background-color: var(--interactive-accent);
+    transition: width 0.3s ease;
+    border-radius: 3px;
+}
+
+.timebox-project-tasks {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.timebox-task-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.88em;
+    padding: 3px 0;
+}
+
+.timebox-task-row.is-completed .timebox-task-text {
+    text-decoration: line-through;
+    opacity: 0.55;
+}
+
+.timebox-task-text {
+    flex: 1;
+    overflow-wrap: anywhere;
+}
+
+.timebox-task-today-btn {
+    background-color: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    color: var(--text-normal);
+    border-radius: 3px;
+    padding: 2px 6px;
+    font-size: 0.75em;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.timebox-task-today-btn:hover {
+    background-color: var(--interactive-hover);
+    border-color: var(--interactive-accent);
+}
+
+.timebox-quick-add-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.timebox-quick-add-row input {
+    flex: 1;
+    font-size: 0.82em;
+    padding: 4px 8px;
+}
+
+.timebox-quick-add-row button {
+    font-size: 0.8em;
+    padding: 4px 8px;
+    cursor: pointer;
+}
+
+.timebox-dashboard-empty {
+    text-align: center;
+    padding: 24px 12px;
+    color: var(--text-muted);
+}
+

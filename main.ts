@@ -1,7 +1,14 @@
-import { App, Plugin, PluginSettingTab, Setting, TFile, Notice, moment, AbstractInputSuggest, Editor, MarkdownView } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, TFile, Notice, moment, AbstractInputSuggest, Editor, MarkdownView, WorkspaceLeaf } from 'obsidian';
+import { ProjectManager } from './projectManager';
+import { ProjectDashboardView, TIMEBOX_PROJECT_VIEW_TYPE } from './projectDashboardView';
+import { ProjectSuggestModal } from './projectSuggestModal';
 
-interface TimeBoxSettings {
+export interface TimeBoxSettings {
     timeBoxFolder: string;
+    projectsFolder: string;
+    enableProjectSync: boolean;
+    autoPushProjectTasksToToday: boolean;
+    hideCompletedProjectTasks: boolean;
     autoOpenOnStartup: boolean;
     timeBoxTemplate: string;
     useTemplateFile: boolean;
@@ -15,6 +22,10 @@ interface TimeBoxSettings {
 
 const DEFAULT_SETTINGS: TimeBoxSettings = {
     timeBoxFolder: 'TimeBox',
+    projectsFolder: 'TimeBox/Projects',
+    enableProjectSync: true,
+    autoPushProjectTasksToToday: true,
+    hideCompletedProjectTasks: false,
     autoOpenOnStartup: true,
     timeBoxTemplate: '## 🎯 Today\'s Focus\n\n## ⏰ Time Blocks\n\n### Morning (6:00 - 12:00)\n- [ ] \n\n### Afternoon (12:00 - 18:00)\n- [ ] \n\n### Evening (18:00 - 22:00)\n- [ ] \n\n## 📝 Tasks\n- [ ] \n\n## 🧠 Brain Dump\n\n\n## 📊 Daily Review\n\n### What went well:\n\n### What could improve:\n\n### Tomorrow\'s priorities:\n',
     useTemplateFile: false,
@@ -28,13 +39,26 @@ const DEFAULT_SETTINGS: TimeBoxSettings = {
 
 export default class TimeBoxPlugin extends Plugin {
     settings: TimeBoxSettings;
+    projectManager: ProjectManager;
 
     async onload() {
         await this.loadSettings();
+        this.projectManager = new ProjectManager(this.app);
 
-        // Add ribbon icon
+        // Register custom view for project dashboard
+        this.registerView(
+            TIMEBOX_PROJECT_VIEW_TYPE,
+            (leaf) => new ProjectDashboardView(leaf, this)
+        );
+
+        // Add ribbon icon for today's timebox
         this.addRibbonIcon('calendar-clock', 'Open today\'s timebox', async () => {
             await this.openTimeBoxForDate(moment());
+        });
+
+        // Add ribbon icon for projects dashboard
+        this.addRibbonIcon('kanban', 'Open projects dashboard', async () => {
+            await this.activateProjectDashboardView();
         });
 
         // Add commands
@@ -62,6 +86,23 @@ export default class TimeBoxPlugin extends Plugin {
             }
         });
 
+        this.addCommand({
+            id: 'open-projects-dashboard',
+            name: 'Open TimeBox projects dashboard',
+            callback: async () => {
+                await this.activateProjectDashboardView();
+            }
+        });
+
+        // Add command to assign active task line to a project
+        this.addCommand({
+            id: 'assign-task-to-project',
+            name: 'Assign task line to a project...',
+            editorCallback: (editor: Editor) => {
+                this.assignCurrentTaskToProject(editor);
+            }
+        });
+
         // Add command to manually carry forward
         this.addCommand({
             id: 'carry-forward-tasks',
@@ -80,7 +121,7 @@ export default class TimeBoxPlugin extends Plugin {
             }
         });
 
-        // Add context menu item
+        // Add context menu items
         this.registerEvent(
             this.app.workspace.on('editor-menu', (menu, editor, view) => {
                 menu.addItem((item) => {
@@ -91,6 +132,68 @@ export default class TimeBoxPlugin extends Plugin {
                             await this.moveTaskToTomorrow(editor);
                         });
                 });
+                menu.addItem((item) => {
+                    item
+                        .setTitle('Assign task to project...')
+                        .setIcon('folder-plus')
+                        .onClick(() => {
+                            this.assignCurrentTaskToProject(editor);
+                        });
+                });
+            })
+        );
+
+        // Bi-directional task status sync & auto-push event listener
+        this.registerEvent(
+            this.app.vault.on('modify', async (file) => {
+                if (!(file instanceof TFile)) return;
+
+                const isDaily = file.path.startsWith(this.settings.timeBoxFolder);
+                const isProject = file.path.startsWith(this.settings.projectsFolder);
+                if (!isDaily && !isProject) return;
+
+                const content = await this.app.vault.read(file);
+                const lines = content.split('\n');
+
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (trimmed.startsWith('- [x]') || trimmed.startsWith('- [X]') || trimmed.startsWith('- [ ]')) {
+                        const isCompleted = trimmed.startsWith('- [x]') || trimmed.startsWith('- [X]');
+                        const cleanedText = trimmed.replace(/^-\s*\[[ xX]\]\s*/, '');
+
+                        if (this.settings.enableProjectSync) {
+                            await this.projectManager.syncTaskCompletion(
+                                file,
+                                cleanedText,
+                                isCompleted,
+                                this.settings.projectsFolder,
+                                this.settings.timeBoxFolder
+                            );
+                        }
+
+                        if (isProject && !isCompleted && this.settings.autoPushProjectTasksToToday && cleanedText.length > 2) {
+                            await this.projectManager.addProjectTaskToToday(
+                                cleanedText,
+                                file,
+                                this.settings.timeBoxFolder,
+                                this.settings.dateFormat
+                            );
+                        }
+
+                        if (isDaily && cleanedText.includes('[[')) {
+                            const linkMatches = Array.from(cleanedText.matchAll(/\[\[([^\]]+)\]\]/g));
+                            for (const match of linkMatches) {
+                                const targetProject = this.projectManager.resolveProjectFile(match[1], this.settings.projectsFolder);
+                                if (targetProject) {
+                                    const baseTaskText = cleanedText.replace(/\[\[[^\]]+\]\]/g, '').trim();
+                                    if (baseTaskText.length > 1) {
+                                        await this.projectManager.addTaskToProject(targetProject, baseTaskText);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             })
         );
 
@@ -115,11 +218,69 @@ export default class TimeBoxPlugin extends Plugin {
         if (this.settings.autoOpenOnStartup) {
             this.app.workspace.onLayoutReady(() => {
                 void this.openTimeBoxForDate(moment());
+                void this.activateProjectDashboardView();
             });
         }
 
         // Add settings tab
         this.addSettingTab(new TimeBoxSettingTab(this.app, this));
+    }
+
+    async activateProjectDashboardView(): Promise<void> {
+        const { workspace } = this.app;
+        let leaf: WorkspaceLeaf | null = null;
+        const leaves = workspace.getLeavesOfType(TIMEBOX_PROJECT_VIEW_TYPE);
+
+        if (leaves.length > 0) {
+            leaf = leaves[0];
+        } else {
+            leaf = workspace.getRightLeaf(false);
+            if (leaf) {
+                await leaf.setViewState({
+                    type: TIMEBOX_PROJECT_VIEW_TYPE,
+                    active: true
+                });
+            }
+        }
+
+        if (leaf) {
+            workspace.revealLeaf(leaf);
+            if (leaf.view instanceof ProjectDashboardView) {
+                await leaf.view.render();
+            }
+            if ((workspace as any).rightSplit && typeof (workspace as any).rightSplit.expand === 'function') {
+                (workspace as any).rightSplit.expand();
+            }
+        }
+    }
+
+    assignCurrentTaskToProject(editor: Editor): void {
+        const cursor = editor.getCursor();
+        const lineText = editor.getLine(cursor.line).trim();
+        if (!lineText) {
+            new Notice('Current line is empty');
+            return;
+        }
+
+        const projectFiles = this.projectManager.getProjectFiles(this.settings.projectsFolder);
+        if (projectFiles.length === 0) {
+            new Notice(`No project notes found in "${this.settings.projectsFolder}". Create one first!`);
+            return;
+        }
+
+        const modal = new ProjectSuggestModal(this.app, projectFiles, async (selectedProject) => {
+            const cleanedText = lineText.replace(/^-\s*\[[ xX]\]\s*/, '');
+            const updatedLine = lineText.includes('[[')
+                ? lineText
+                : lineText.startsWith('-')
+                ? `${lineText} [[${selectedProject.basename}]]`
+                : `- [ ] ${lineText} [[${selectedProject.basename}]]`;
+
+            editor.setLine(cursor.line, updatedLine);
+            await this.projectManager.addTaskToProject(selectedProject, cleanedText, true);
+        });
+
+        modal.open();
     }
 
     async moveTaskToTomorrow(editor: Editor): Promise<void> {
@@ -510,6 +671,47 @@ class TimeBoxSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.timeBoxFolder)
                 .onChange((value) => {
                     this.plugin.settings.timeBoxFolder = value;
+                    this.plugin.saveSettings().catch(console.error);
+                }));
+
+        new Setting(containerEl)
+            .setName('Projects folder')
+            .setDesc('Folder where master project notes are stored')
+            .addText(text => text
+                .setPlaceholder('TimeBox/Projects')
+                .setValue(this.plugin.settings.projectsFolder)
+                .onChange((value) => {
+                    this.plugin.settings.projectsFolder = value || 'TimeBox/Projects';
+                    this.plugin.saveSettings().catch(console.error);
+                }));
+
+        new Setting(containerEl)
+            .setName('Enable bi-directional project sync')
+            .setDesc('Automatically sync task completion status between daily notes and project notes')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.enableProjectSync)
+                .onChange((value) => {
+                    this.plugin.settings.enableProjectSync = value;
+                    this.plugin.saveSettings().catch(console.error);
+                }));
+
+        new Setting(containerEl)
+            .setName("Auto-push new project tasks to Today's TimeBox")
+            .setDesc("Automatically add any new task created inside a Project Note directly into today's daily note")
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.autoPushProjectTasksToToday)
+                .onChange((value) => {
+                    this.plugin.settings.autoPushProjectTasksToToday = value;
+                    this.plugin.saveSettings().catch(console.error);
+                }));
+
+        new Setting(containerEl)
+            .setName("Hide completed tasks in Projects Dashboard")
+            .setDesc("Hide finished (- [x]) tasks from the sidebar project cards by default")
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.hideCompletedProjectTasks)
+                .onChange((value) => {
+                    this.plugin.settings.hideCompletedProjectTasks = value;
                     this.plugin.saveSettings().catch(console.error);
                 }));
 

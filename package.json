@@ -1,7 +1,7 @@
 {
   "name": "timebox-daily",
-  "version": "1.2.5",
-  "description": "Smart daily timeboxing with automatic task rollover and structured planning.",
+  "version": "1.3.0",
+  "description": "Smart daily timeboxing with multi-project tracking, sidebar dashboard, auto task rollover, and bi-directional task sync.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",

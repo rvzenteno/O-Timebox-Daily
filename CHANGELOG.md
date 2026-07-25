@@ -1,6 +1,20 @@
 # Changelog - TimeBox Daily
 
-## [1.2.1] - 2026-01-27
+## [1.3.0] - 2026-07-25
+
+### Added
+- 🗂 **Multi-Project Tracking**: Manage multiple project notes with real-time progress bars and task lists
+- 📊 **Projects Sidebar Dashboard**: Custom Obsidian sidebar view (`ItemView`) with project cards and completion metrics
+- 🔄 **Bi-Directional Task Sync**: Complete tasks in Daily Notes, Project Notes, or the Dashboard to sync `- [x]` status across the vault
+- ➕ **One-Click `[+ Today]` Task Injection**: Instantly push backlog project tasks into Today's TimeBox note
+- 🔗 **Automatic `[[Project]]` Link Parsing**: Type `- [ ] Task [[ProjectName]]` in any daily note to automatically link and push tasks to project notes
+- ⚡ **Auto-Push New Project Tasks**: Option to automatically push new project tasks straight into Today's TimeBox note upon creation
+- 👁️ **Hide/Show Completed Tasks**: Header toggle button `👁` and setting toggle to show/hide finished project tasks in dashboard cards
+- 📁 **Configurable Projects Folder**: Dedicated folder configuration (`TimeBox/Projects` by default)
+
+---
+
+## [1.2.5] - 2026-01-27
 
 ### Added
 - 💝 **Donation Support**: Added donation options in plugin settings
