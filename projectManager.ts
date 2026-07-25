@@ -52,11 +52,12 @@ export class ProjectManager {
     }
 
     /**
-     * Resolve a wiki-link string (e.g. "MyProject" or "TimeBox/Projects/MyProject") to a project file.
+     * Resolve a wiki-link string (e.g. "MyProject" or "TimeBox/Projects/MyProject|Alias") to a project file.
      */
     resolveProjectFile(linkText: string, projectsFolder: string): TFile | null {
         const projectFiles = this.getProjectFiles(projectsFolder);
-        const cleanedLink = linkText.replace(/^.*[\\/]/, '').replace(/\.md$/, '').toLowerCase();
+        const targetPath = linkText.split('|')[0].trim();
+        const cleanedLink = targetPath.replace(/^.*[\\/]/, '').replace(/\.md$/, '').toLowerCase();
 
         for (const file of projectFiles) {
             if (file.basename.toLowerCase() === cleanedLink || file.path.toLowerCase().endsWith(cleanedLink + '.md')) {
@@ -127,6 +128,41 @@ export class ProjectManager {
         }
 
         return projectsData;
+    }
+
+    /**
+     * Scan daily notes in the TimeBox folder to ensure any task containing [[ProjectLink]] is pushed to the project note.
+     */
+    async scanDailyNotesForProjectLinks(timeBoxFolder: string, projectsFolder: string): Promise<void> {
+        const files = this.app.vault.getFiles();
+        const dailyFiles = files.filter(f => f.extension === 'md' && f.path.startsWith(timeBoxFolder));
+
+        for (const file of dailyFiles) {
+            const content = await this.app.vault.read(file);
+            const lines = content.split('\n');
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed.startsWith('- [ ]') && trimmed.includes('[[')) {
+                    const cleanedText = trimmed.replace(/^-\s*\[[ xX]\]\s*/, '');
+                    const linkRegex = /\[\[([^\]]+)\]\]/g;
+                    let match: RegExpExecArray | null;
+
+                    while ((match = linkRegex.exec(cleanedText)) !== null) {
+                        const projectLink = match[1];
+                        if (projectLink) {
+                            const targetProject = this.resolveProjectFile(projectLink, projectsFolder);
+                            if (targetProject) {
+                                const baseTaskText = cleanedText.replace(/\[\[[^\]]+\]\]/g, '').trim();
+                                if (baseTaskText.length > 1) {
+                                    await this.addTaskToProject(targetProject, baseTaskText, false);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /**

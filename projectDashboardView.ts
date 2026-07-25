@@ -76,6 +76,7 @@ export class ProjectDashboardView extends ItemView {
         });
 
         // Projects List
+        await this.projectManager.scanDailyNotesForProjectLinks(this.plugin.settings.timeBoxFolder, this.plugin.settings.projectsFolder);
         const projectsData = await this.projectManager.getAllProjectsData(this.plugin.settings.projectsFolder);
 
         if (projectsData.length === 0) {
