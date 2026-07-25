@@ -2,6 +2,7 @@ import { App, Plugin, PluginSettingTab, Setting, TFile, Notice, AbstractInputSug
 import { ProjectManager } from './projectManager';
 import { ProjectDashboardView, TIMEBOX_PROJECT_VIEW_TYPE } from './projectDashboardView';
 import { ProjectSuggestModal } from './projectSuggestModal';
+import { WhatsNewModal } from './whatsNewModal';
 
 const getMoment = (inp?: unknown, fmt?: unknown, strict?: boolean): moment.Moment => 
     (moment as unknown as (i?: unknown, f?: unknown, s?: boolean) => moment.Moment)(inp, fmt, strict);
@@ -13,6 +14,7 @@ export interface TimeBoxSettings {
     autoPushProjectTasksToToday: boolean;
     hideCompletedProjectTasks: boolean;
     autoOpenOnStartup: boolean;
+    lastSeenVersion: string;
     timeBoxTemplate: string;
     useTemplateFile: boolean;
     templateFilePath: string;
@@ -30,6 +32,7 @@ const DEFAULT_SETTINGS: TimeBoxSettings = {
     autoPushProjectTasksToToday: true,
     hideCompletedProjectTasks: false,
     autoOpenOnStartup: true,
+    lastSeenVersion: '',
     timeBoxTemplate: '## 🎯 Today\'s Focus\n\n## ⏰ Time Blocks\n\n### Morning (6:00 - 12:00)\n- [ ] \n\n### Afternoon (12:00 - 18:00)\n- [ ] \n\n### Evening (18:00 - 22:00)\n- [ ] \n\n## 📝 Tasks\n- [ ] \n\n## 🧠 Brain Dump\n\n\n## 📊 Daily Review\n\n### What went well:\n\n### What could improve:\n\n### Tomorrow\'s priorities:\n',
     useTemplateFile: false,
     templateFilePath: '',
@@ -121,6 +124,15 @@ export default class TimeBoxPlugin extends Plugin {
             name: 'Move task/line to tomorrow\'s timebox',
             editorCallback: async (editor: Editor) => {
                 await this.moveTaskToTomorrow(editor);
+            }
+        });
+
+        // Add command for release notes and support
+        this.addCommand({
+            id: 'open-whats-new',
+            name: 'What\'s new & support...',
+            callback: () => {
+                new WhatsNewModal(this.app, this.manifest.version).open();
             }
         });
 
@@ -221,13 +233,18 @@ export default class TimeBoxPlugin extends Plugin {
             })
         );
 
-        // Auto-open on startup if enabled
-        if (this.settings.autoOpenOnStartup) {
-            this.app.workspace.onLayoutReady(() => {
+        // Auto-open on startup if enabled & check for version update notes
+        this.app.workspace.onLayoutReady(() => {
+            if (this.settings.autoOpenOnStartup) {
                 void this.openTimeBoxForDate(getMoment());
                 void this.activateProjectDashboardView();
-            });
-        }
+            }
+            if (this.settings.lastSeenVersion !== this.manifest.version) {
+                new WhatsNewModal(this.app, this.manifest.version).open();
+                this.settings.lastSeenVersion = this.manifest.version;
+                void this.saveSettings();
+            }
+        });
 
         // Add settings tab
         this.addSettingTab(new TimeBoxSettingTab(this.app, this));
@@ -829,6 +846,20 @@ class TimeBoxSettingTab extends PluginSettingTab {
                 text.inputEl.rows = 15;
                 text.inputEl.cols = 50;
             });
+
+        new Setting(containerEl)
+            .setName('Support & Release Notes')
+            .setHeading();
+
+        new Setting(containerEl)
+            .setName("What's New in TimeBox Daily")
+            .setDesc("View release notes, latest features, and developer support options")
+            .addButton(btn => btn
+                .setButtonText("View What's New")
+                .setCta()
+                .onClick(() => {
+                    new WhatsNewModal(this.app, this.plugin.manifest.version).open();
+                }));
     }
 }
 
