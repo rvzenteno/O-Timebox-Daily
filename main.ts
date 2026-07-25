@@ -244,12 +244,13 @@ export default class TimeBoxPlugin extends Plugin {
         }
 
         if (leaf) {
-            workspace.revealLeaf(leaf);
+            void workspace.revealLeaf(leaf);
             if (leaf.view instanceof ProjectDashboardView) {
                 await leaf.view.render();
             }
-            if ((workspace as any).rightSplit && typeof (workspace as any).rightSplit.expand === 'function') {
-                (workspace as any).rightSplit.expand();
+            const rightSplit = (workspace as unknown as { rightSplit?: { expand?: () => void } }).rightSplit;
+            if (rightSplit && typeof rightSplit.expand === 'function') {
+                rightSplit.expand();
             }
         }
     }
@@ -268,16 +269,18 @@ export default class TimeBoxPlugin extends Plugin {
             return;
         }
 
-        const modal = new ProjectSuggestModal(this.app, projectFiles, async (selectedProject) => {
-            const cleanedText = lineText.replace(/^-\s*\[[ xX]\]\s*/, '');
-            const updatedLine = lineText.includes('[[')
-                ? lineText
-                : lineText.startsWith('-')
-                ? `${lineText} [[${selectedProject.basename}]]`
-                : `- [ ] ${lineText} [[${selectedProject.basename}]]`;
+        const modal = new ProjectSuggestModal(this.app, projectFiles, (selectedProject) => {
+            void (async () => {
+                const cleanedText = lineText.replace(/^-\s*\[[ xX]\]\s*/, '');
+                const updatedLine = lineText.includes('[[')
+                    ? lineText
+                    : lineText.startsWith('-')
+                    ? `${lineText} [[${selectedProject.basename}]]`
+                    : `- [ ] ${lineText} [[${selectedProject.basename}]]`;
 
-            editor.setLine(cursor.line, updatedLine);
-            await this.projectManager.addTaskToProject(selectedProject, cleanedText, true);
+                editor.setLine(cursor.line, updatedLine);
+                await this.projectManager.addTaskToProject(selectedProject, cleanedText, true);
+            })();
         });
 
         modal.open();
@@ -386,7 +389,6 @@ export default class TimeBoxPlugin extends Plugin {
         let content = `# Timebox - ${date.format(titleFormat)}\n\n`;
 
         if (this.settings.addNavigationLinks) {
-            const format = this.settings.dateFormat || 'YYYY-MM-DD';
             const yesterdayDate = moment(date).subtract(1, 'days');
             const tomorrowDate = moment(date).add(1, 'days');
             const yesterdayFileBase = this.getDateFileName(yesterdayDate).replace(/\.md$/, '');

@@ -1,5 +1,5 @@
-import { App, ItemView, WorkspaceLeaf, TFile, Notice, setIcon, Modal, Setting } from 'obsidian';
-import { ProjectManager, ProjectData, ProjectTask } from './projectManager';
+import { App, ItemView, WorkspaceLeaf, TFile, setIcon, Modal, Setting } from 'obsidian';
+import { ProjectManager, ProjectData } from './projectManager';
 import TimeBoxPlugin from './main';
 
 export const TIMEBOX_PROJECT_VIEW_TYPE = 'timebox-project-dashboard';
@@ -56,10 +56,12 @@ export class ProjectDashboardView extends ItemView {
             title: isHiding ? 'Show completed tasks' : 'Hide completed tasks'
         });
         setIcon(toggleCompletedBtn, isHiding ? 'eye-off' : 'eye');
-        toggleCompletedBtn.addEventListener('click', async () => {
-            this.plugin.settings.hideCompletedProjectTasks = !this.plugin.settings.hideCompletedProjectTasks;
-            await this.plugin.saveSettings();
-            void this.render();
+        toggleCompletedBtn.addEventListener('click', () => {
+            void (async () => {
+                this.plugin.settings.hideCompletedProjectTasks = !this.plugin.settings.hideCompletedProjectTasks;
+                await this.plugin.saveSettings();
+                void this.render();
+            })();
         });
 
         const refreshBtn = actionsEl.createEl('button', { cls: 'clickable-icon', title: 'Refresh dashboard' });
@@ -69,8 +71,8 @@ export class ProjectDashboardView extends ItemView {
         });
 
         const newProjBtn = actionsEl.createEl('button', { cls: 'timebox-btn-primary', text: '+ New Project' });
-        newProjBtn.addEventListener('click', async () => {
-            await this.promptCreateProject();
+        newProjBtn.addEventListener('click', () => {
+            void this.promptCreateProject();
         });
 
         // Projects List
@@ -80,8 +82,8 @@ export class ProjectDashboardView extends ItemView {
             const emptyEl = container.createEl('div', { cls: 'timebox-dashboard-empty' });
             emptyEl.createEl('p', { text: `No project notes found in "${this.plugin.settings.projectsFolder}" folder.` });
             const createFirstBtn = emptyEl.createEl('button', { text: 'Create First Project' });
-            createFirstBtn.addEventListener('click', async () => {
-                await this.promptCreateProject();
+            createFirstBtn.addEventListener('click', () => {
+                void this.promptCreateProject();
             });
             return;
         }
@@ -99,9 +101,11 @@ export class ProjectDashboardView extends ItemView {
         // Card Header
         const cardHeader = cardEl.createEl('div', { cls: 'timebox-project-header' });
         const titleEl = cardHeader.createEl('a', { cls: 'timebox-project-title', text: proj.name });
-        titleEl.addEventListener('click', async () => {
-            const leaf = this.app.workspace.getLeaf(false);
-            await leaf.openFile(proj.file);
+        titleEl.addEventListener('click', () => {
+            void (async () => {
+                const leaf = this.app.workspace.getLeaf(false);
+                await leaf.openFile(proj.file);
+            })();
         });
 
         cardHeader.createEl('span', {
@@ -132,17 +136,19 @@ export class ProjectDashboardView extends ItemView {
                     cls: `timebox-task-row ${task.completed ? 'is-completed' : ''}`
                 });
 
-                const checkbox = taskRow.createEl('input', { type: 'checkbox' }) as HTMLInputElement;
+                const checkbox = taskRow.createEl('input', { type: 'checkbox' });
                 checkbox.checked = task.completed;
-                checkbox.addEventListener('change', async () => {
-                    await this.projectManager.syncTaskCompletion(
-                        proj.file,
-                        task.text,
-                        checkbox.checked,
-                        this.plugin.settings.projectsFolder,
-                        this.plugin.settings.timeBoxFolder
-                    );
-                    void this.render();
+                checkbox.addEventListener('change', () => {
+                    void (async () => {
+                        await this.projectManager.syncTaskCompletion(
+                            proj.file,
+                            task.text,
+                            checkbox.checked,
+                            this.plugin.settings.projectsFolder,
+                            this.plugin.settings.timeBoxFolder
+                        );
+                        void this.render();
+                    })();
                 });
 
                 taskRow.createEl('span', { cls: 'timebox-task-text', text: task.text });
@@ -154,14 +160,16 @@ export class ProjectDashboardView extends ItemView {
                         title: "Add task to today's TimeBox note"
                     });
 
-                    addToTodayBtn.addEventListener('click', async (e) => {
+                    addToTodayBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        await this.projectManager.addProjectTaskToToday(
-                            task.text,
-                            proj.file,
-                            this.plugin.settings.timeBoxFolder,
-                            this.plugin.settings.dateFormat
-                        );
+                        void (async () => {
+                            await this.projectManager.addProjectTaskToToday(
+                                task.text,
+                                proj.file,
+                                this.plugin.settings.timeBoxFolder,
+                                this.plugin.settings.dateFormat
+                            );
+                        })();
                     });
                 }
             }
@@ -172,7 +180,7 @@ export class ProjectDashboardView extends ItemView {
         const input = addRow.createEl('input', {
             type: 'text',
             placeholder: 'Add task to project...'
-        }) as HTMLInputElement;
+        });
 
         const addBtn = addRow.createEl('button', { text: 'Add' });
         const handleAdd = async () => {
@@ -184,10 +192,12 @@ export class ProjectDashboardView extends ItemView {
             }
         };
 
-        addBtn.addEventListener('click', async () => await handleAdd());
-        input.addEventListener('keydown', async (e) => {
+        addBtn.addEventListener('click', () => {
+            void handleAdd();
+        });
+        input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
-                await handleAdd();
+                void handleAdd();
             }
         });
     }
@@ -220,15 +230,17 @@ export class ProjectDashboardView extends ItemView {
                         })
                 );
             }
-        })(this.app, async (name: string) => {
+        })(this.app, (name: string) => {
             if (name.trim()) {
-                const newFile = await this.projectManager.createProjectFile(
-                    name.trim(),
-                    this.plugin.settings.projectsFolder
-                );
-                const leaf = this.app.workspace.getLeaf(false);
-                await leaf.openFile(newFile);
-                void this.render();
+                void (async () => {
+                    const newFile = await this.projectManager.createProjectFile(
+                        name.trim(),
+                        this.plugin.settings.projectsFolder
+                    );
+                    const leaf = this.app.workspace.getLeaf(false);
+                    await leaf.openFile(newFile);
+                    void this.render();
+                })();
             }
         });
 
