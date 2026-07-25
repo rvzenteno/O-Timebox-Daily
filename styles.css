@@ -493,14 +493,14 @@
     flex-wrap: wrap;
 }
 
-.timebox-support-btn {
+a.timebox-support-btn {
     display: inline-flex;
     align-items: center;
     padding: 6px 14px;
     border-radius: 6px;
     font-size: 0.85em;
     font-weight: 500;
-    text-decoration: none !important;
+    text-decoration: none;
     cursor: pointer;
     transition: transform 0.15s ease, opacity 0.15s ease;
 }
@@ -510,19 +510,14 @@
     opacity: 0.9;
 }
 
-.timebox-paypal-btn {
+a.timebox-paypal-btn {
     background-color: #0070ba;
-    color: #ffffff !important;
+    color: #ffffff;
 }
 
-.timebox-coffee-btn {
-    background-color: #ffdd00;
-    color: #000000 !important;
-}
-
-.timebox-github-btn {
+a.timebox-github-btn {
     background-color: var(--interactive-accent);
-    color: var(--text-on-accent) !important;
+    color: var(--text-on-accent);
 }
 
 .timebox-modal-footer {
