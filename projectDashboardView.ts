@@ -45,10 +45,10 @@ export class ProjectDashboardView extends ItemView {
         container.addClass('timebox-dashboard-container');
 
         // Header
-        const headerEl = container.createEl('div', { cls: 'timebox-dashboard-header' });
+        const headerEl = container.createDiv({ cls: 'timebox-dashboard-header' });
         headerEl.createEl('h4', { text: '🗂 Projects Dashboard' });
 
-        const actionsEl = headerEl.createEl('div', { cls: 'timebox-dashboard-actions' });
+        const actionsEl = headerEl.createDiv({ cls: 'timebox-dashboard-actions' });
         
         const isHiding = this.plugin.settings.hideCompletedProjectTasks;
         const toggleCompletedBtn = actionsEl.createEl('button', {
@@ -79,7 +79,7 @@ export class ProjectDashboardView extends ItemView {
         const projectsData = await this.projectManager.getAllProjectsData(this.plugin.settings.projectsFolder);
 
         if (projectsData.length === 0) {
-            const emptyEl = container.createEl('div', { cls: 'timebox-dashboard-empty' });
+            const emptyEl = container.createDiv({ cls: 'timebox-dashboard-empty' });
             emptyEl.createEl('p', { text: `No project notes found in "${this.plugin.settings.projectsFolder}" folder.` });
             const createFirstBtn = emptyEl.createEl('button', { text: 'Create First Project' });
             createFirstBtn.addEventListener('click', () => {
@@ -88,7 +88,7 @@ export class ProjectDashboardView extends ItemView {
             return;
         }
 
-        const projectListEl = container.createEl('div', { cls: 'timebox-project-list' });
+        const projectListEl = container.createDiv({ cls: 'timebox-project-list' });
 
         for (const proj of projectsData) {
             this.renderProjectCard(projectListEl, proj);
@@ -96,10 +96,10 @@ export class ProjectDashboardView extends ItemView {
     }
 
     renderProjectCard(parentEl: HTMLElement, proj: ProjectData): void {
-        const cardEl = parentEl.createEl('div', { cls: 'timebox-project-card' });
+        const cardEl = parentEl.createDiv({ cls: 'timebox-project-card' });
 
         // Card Header
-        const cardHeader = cardEl.createEl('div', { cls: 'timebox-project-header' });
+        const cardHeader = cardEl.createDiv({ cls: 'timebox-project-header' });
         const titleEl = cardHeader.createEl('a', { cls: 'timebox-project-title', text: proj.name });
         titleEl.addEventListener('click', () => {
             void (async () => {
@@ -108,18 +108,18 @@ export class ProjectDashboardView extends ItemView {
             })();
         });
 
-        cardHeader.createEl('span', {
+        cardHeader.createSpan({
             cls: 'timebox-project-meta',
             text: `${proj.completedCount}/${proj.totalCount} completed (${proj.progressPercent}%)`
         });
 
         // Progress Bar
-        const progressContainer = cardEl.createEl('div', { cls: 'timebox-progress-container' });
-        const progressFill = progressContainer.createEl('div', { cls: 'timebox-progress-fill' });
+        const progressContainer = cardEl.createDiv({ cls: 'timebox-progress-container' });
+        const progressFill = progressContainer.createDiv({ cls: 'timebox-progress-fill' });
         progressFill.style.width = `${proj.progressPercent}%`;
 
         // Tasks List
-        const tasksContainer = cardEl.createEl('div', { cls: 'timebox-project-tasks' });
+        const tasksContainer = cardEl.createDiv({ cls: 'timebox-project-tasks' });
 
         const tasksToDisplay = this.plugin.settings.hideCompletedProjectTasks
             ? proj.tasks.filter(t => !t.completed)
@@ -129,14 +129,14 @@ export class ProjectDashboardView extends ItemView {
             const msg = proj.tasks.length > 0 && this.plugin.settings.hideCompletedProjectTasks
                 ? 'All tasks completed! (Click 👁 to view completed)'
                 : 'No checklist tasks found in this project.';
-            tasksContainer.createEl('div', { cls: 'timebox-task-empty', text: msg });
+            tasksContainer.createDiv({ cls: 'timebox-task-empty', text: msg });
         } else {
             for (const task of tasksToDisplay) {
-                const taskRow = tasksContainer.createEl('div', {
+                const taskRow = tasksContainer.createDiv({
                     cls: `timebox-task-row ${task.completed ? 'is-completed' : ''}`
                 });
 
-                const checkbox = taskRow.createEl('input', { type: 'checkbox' });
+                const checkbox = taskRow.createEl('input', { type: 'checkbox' }) as HTMLInputElement;
                 checkbox.checked = task.completed;
                 checkbox.addEventListener('change', () => {
                     void (async () => {
@@ -151,7 +151,7 @@ export class ProjectDashboardView extends ItemView {
                     })();
                 });
 
-                taskRow.createEl('span', { cls: 'timebox-task-text', text: task.text });
+                taskRow.createSpan({ cls: 'timebox-task-text', text: task.text });
 
                 if (!task.completed) {
                     const addToTodayBtn = taskRow.createEl('button', {
@@ -176,11 +176,11 @@ export class ProjectDashboardView extends ItemView {
         }
 
         // Quick add task row
-        const addRow = cardEl.createEl('div', { cls: 'timebox-quick-add-row' });
+        const addRow = cardEl.createDiv({ cls: 'timebox-quick-add-row' });
         const input = addRow.createEl('input', {
             type: 'text',
             placeholder: 'Add task to project...'
-        });
+        }) as HTMLInputElement;
 
         const addBtn = addRow.createEl('button', { text: 'Add' });
         const handleAdd = async () => {
@@ -204,7 +204,7 @@ export class ProjectDashboardView extends ItemView {
 
     async promptCreateProject(): Promise<void> {
         const modal = new (class extends Modal {
-            resultName: string = '';
+            resultName = '';
             onSubmit: (name: string) => void;
 
             constructor(app: App, onSubmit: (name: string) => void) {

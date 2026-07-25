@@ -1,4 +1,5 @@
-import { App, TFile, Notice, moment } from 'obsidian';
+import { App, TFile, Notice } from 'obsidian';
+import moment from 'moment';
 
 export interface ProjectTask {
     text: string;
@@ -182,7 +183,7 @@ created: ${moment().format('YYYY-MM-DD')}
             await this.app.vault.createFolder(timeBoxFolder);
         }
 
-        let targetFile = this.app.vault.getAbstractFileByPath(todayPath);
+        const targetFile = this.app.vault.getAbstractFileByPath(todayPath);
         let content = '';
 
         if (targetFile instanceof TFile) {
@@ -232,7 +233,7 @@ created: ${moment().format('YYYY-MM-DD')}
     /**
      * Add a task to a target project note.
      */
-    async addTaskToProject(projectFile: TFile, taskText: string, showNotice: boolean = false): Promise<void> {
+    async addTaskToProject(projectFile: TFile, taskText: string, showNotice = false): Promise<void> {
         const content = await this.app.vault.read(projectFile);
         const taskLine = `- [ ] ${taskText}`;
 

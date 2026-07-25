@@ -1,4 +1,5 @@
-import { App, Plugin, PluginSettingTab, Setting, TFile, Notice, moment, AbstractInputSuggest, Editor, MarkdownView, WorkspaceLeaf } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, TFile, Notice, AbstractInputSuggest, Editor, WorkspaceLeaf } from 'obsidian';
+import moment from 'moment';
 import { ProjectManager } from './projectManager';
 import { ProjectDashboardView, TIMEBOX_PROJECT_VIEW_TYPE } from './projectDashboardView';
 import { ProjectSuggestModal } from './projectSuggestModal';
@@ -116,14 +117,14 @@ export default class TimeBoxPlugin extends Plugin {
         this.addCommand({
             id: 'move-task-to-tomorrow',
             name: 'Move task/line to tomorrow\'s timebox',
-            editorCallback: async (editor: Editor, view: MarkdownView) => {
+            editorCallback: async (editor: Editor) => {
                 await this.moveTaskToTomorrow(editor);
             }
         });
 
         // Add context menu items
         this.registerEvent(
-            this.app.workspace.on('editor-menu', (menu, editor, view) => {
+            this.app.workspace.on('editor-menu', (menu, editor) => {
                 menu.addItem((item) => {
                     item
                         .setTitle('Move task to tomorrow')
@@ -309,7 +310,7 @@ export default class TimeBoxPlugin extends Plugin {
         const targetPath = this.getTimeBoxPath(targetDate);
         await this.ensureTimeBoxFolder();
 
-        let targetFile = this.app.vault.getAbstractFileByPath(targetPath);
+        const targetFile = this.app.vault.getAbstractFileByPath(targetPath);
         let targetContent = '';
         if (targetFile instanceof TFile) {
             targetContent = await this.app.vault.read(targetFile);
@@ -385,7 +386,7 @@ export default class TimeBoxPlugin extends Plugin {
     }
 
     async createTimeBoxContentForDate(date: moment.Moment): Promise<string> {
-        let titleFormat = 'dddd, MMMM Do YYYY';
+        const titleFormat = 'dddd, MMMM Do YYYY';
         let content = `# Timebox - ${date.format(titleFormat)}\n\n`;
 
         if (this.settings.addNavigationLinks) {
@@ -842,7 +843,7 @@ class FileSuggest extends AbstractInputSuggest<TFile> {
         el.setText(file.path);
     }
 
-    selectSuggestion(file: TFile, evt: MouseEvent | KeyboardEvent): void {
+    selectSuggestion(file: TFile): void {
         this.inputEl.value = file.path;
         this.inputEl.dispatchEvent(new Event('input'));
         this.close();

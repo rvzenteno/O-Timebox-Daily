@@ -4,8 +4,9 @@ module.exports = {
   parserOptions: {
     ecmaVersion: 2020,
     sourceType: "module",
+    project: "./tsconfig.json",
   },
-  plugins: ["@typescript-eslint"],
+  plugins: ["@typescript-eslint", "obsidianmd"],
   extends: [
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended"
