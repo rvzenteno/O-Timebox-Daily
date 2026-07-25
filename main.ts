@@ -184,10 +184,11 @@ export default class TimeBoxPlugin extends Plugin {
                         }
 
                         if (isDaily && cleanedText.includes('[[')) {
-                            const linkMatches = Array.from(cleanedText.matchAll(/\[\[([^\]]+)\]\]/g));
-                            for (const match of linkMatches) {
+                            const linkRegex = /\[\[([^\]]+)\]\]/g;
+                            let match: RegExpExecArray | null;
+                            while ((match = linkRegex.exec(cleanedText)) !== null) {
                                 const projectLink = match[1];
-                                if (typeof projectLink === 'string') {
+                                if (projectLink) {
                                     const targetProject = this.projectManager.resolveProjectFile(projectLink, this.settings.projectsFolder);
                                     if (targetProject) {
                                         const baseTaskText = cleanedText.replace(/\[\[[^\]]+\]\]/g, '').trim();
@@ -250,7 +251,7 @@ export default class TimeBoxPlugin extends Plugin {
         }
 
         if (leaf) {
-            void workspace.revealLeaf(leaf);
+            workspace.setActiveLeaf(leaf, { focus: true });
             if (leaf.view instanceof ProjectDashboardView) {
                 await leaf.view.render();
             }
@@ -661,6 +662,10 @@ class TimeBoxSettingTab extends PluginSettingTab {
     constructor(app: App, plugin: TimeBoxPlugin) {
         super(app, plugin);
         this.plugin = plugin;
+    }
+
+    getSettingDefinitions() {
+        return [];
     }
 
     display(): void {
