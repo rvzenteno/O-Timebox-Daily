@@ -124,31 +124,76 @@ export class ProjectDashboardView extends ItemView {
         }
     }
 
+    private collapsedProjects: Set<string> = new Set();
+    private expandedSubtasks: Set<string> = new Set();
+    private activeSubtaskInputs: Set<string> = new Set();
+
     renderProjectCard(parentEl: HTMLElement, proj: ProjectData): void {
-        const cardEl = parentEl.createDiv({ cls: 'timebox-project-card' });
+        const isCollapsed = this.collapsedProjects.has(proj.file.path);
+        const cardEl = parentEl.createDiv({
+            cls: `timebox-project-card ${isCollapsed ? 'is-collapsed' : ''}`
+        });
 
         // Card Header
         const cardHeader = cardEl.createDiv({ cls: 'timebox-project-header' });
-        const titleEl = cardHeader.createEl('a', { cls: 'timebox-project-title', text: proj.name });
-        titleEl.addEventListener('click', () => {
+
+        const headerLeft = cardHeader.createDiv({ cls: 'timebox-project-header-left' });
+        
+        // Expand/Collapse Chevron Icon
+        const toggleChevron = headerLeft.createEl('button', {
+            cls: 'timebox-task-icon-btn timebox-project-toggle-btn',
+            title: isCollapsed ? 'Expand project card' : 'Collapse project card'
+        });
+        setIcon(toggleChevron, isCollapsed ? 'chevron-right' : 'chevron-down');
+
+        // Project Title
+        const titleEl = headerLeft.createSpan({ cls: 'timebox-project-title', text: proj.name });
+
+        // Open Note Button (📄 / file icon)
+        const openNoteBtn = headerLeft.createEl('button', {
+            cls: 'timebox-task-icon-btn timebox-project-open-btn',
+            title: `Open "${proj.name}" note`
+        });
+        setIcon(openNoteBtn, 'external-link');
+        openNoteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
             void (async () => {
                 const leaf = this.app.workspace.getLeaf(false);
                 await leaf.openFile(proj.file);
             })();
         });
 
+        // Toggle Collapse when clicking header or chevron
+        const handleToggleCollapse = (e: MouseEvent) => {
+            e.stopPropagation();
+            if (isCollapsed) {
+                this.collapsedProjects.delete(proj.file.path);
+            } else {
+                this.collapsedProjects.add(proj.file.path);
+            }
+            void this.render();
+        };
+
+        cardHeader.addEventListener('click', handleToggleCollapse);
+
         cardHeader.createSpan({
             cls: 'timebox-project-meta',
             text: `${proj.completedCount}/${proj.totalCount} completed (${proj.progressPercent}%)`
         });
 
+        // Card Body Container (collapsible)
+        const cardBody = cardEl.createDiv({ cls: 'timebox-project-card-body' });
+        if (isCollapsed) {
+            cardBody.style.display = 'none';
+        }
+
         // Progress Bar
-        const progressContainer = cardEl.createDiv({ cls: 'timebox-progress-container' });
+        const progressContainer = cardBody.createDiv({ cls: 'timebox-progress-container' });
         const progressFill = progressContainer.createDiv({ cls: 'timebox-progress-fill' });
         progressFill.style.width = `${proj.progressPercent}%`;
 
         // Tasks List
-        const tasksContainer = cardEl.createDiv({ cls: 'timebox-project-tasks' });
+        const tasksContainer = cardBody.createDiv({ cls: 'timebox-project-tasks' });
 
         const tasksToDisplay = this.plugin.settings.hideCompletedProjectTasks
             ? proj.tasks.filter(t => !t.completed)
@@ -166,7 +211,7 @@ export class ProjectDashboardView extends ItemView {
         }
 
         // Quick add task row
-        const addRow = cardEl.createDiv({ cls: 'timebox-quick-add-row' });
+        const addRow = cardBody.createDiv({ cls: 'timebox-quick-add-row' });
         const input = addRow.createEl('input', {
             type: 'text',
             placeholder: 'Add task to project...'
@@ -191,9 +236,6 @@ export class ProjectDashboardView extends ItemView {
             }
         });
     }
-
-    private expandedSubtasks: Set<string> = new Set();
-    private activeSubtaskInputs: Set<string> = new Set();
 
     renderTaskRow(containerEl: HTMLElement, proj: ProjectData, task: ProjectTask, topLevelIndex: number): void {
         const taskKey = `${proj.file.path}::${task.lineIndex}`;

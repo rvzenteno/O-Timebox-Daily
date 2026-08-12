@@ -311,6 +311,23 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.timebox-project-header-left {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.timebox-project-open-btn {
+    opacity: 0.5;
+}
+
+.timebox-project-open-btn:hover {
+    opacity: 1;
+    color: var(--interactive-accent);
 }
 
 .timebox-project-title {
