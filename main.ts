@@ -145,6 +145,49 @@ export default class TimeBoxPlugin extends Plugin {
             }
         });
 
+        // Add command to group active note tasks into collapsible callouts by project
+        this.addCommand({
+            id: 'group-tasks-by-project',
+            name: 'Group active note tasks into collapsible project callouts',
+            editorCallback: async (editor: Editor) => {
+                const content = editor.getValue();
+                const lines = content.split('\n');
+                const tasksToGroup: string[] = [];
+                let hasHeader = false;
+                let headerEndIndex = -1;
+
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    const trimmed = line.trim();
+                    if (trimmed.startsWith('# Timebox')) {
+                        hasHeader = true;
+                        headerEndIndex = i;
+                    }
+                    if (trimmed.startsWith('- [ ]') || trimmed.startsWith('> - [ ]')) {
+                        tasksToGroup.push(trimmed.replace(/^>\s*/, ''));
+                    }
+                }
+
+                if (tasksToGroup.length === 0) {
+                    new Notice('No unchecked tasks found to group');
+                    return;
+                }
+
+                // Filter out original flat tasks from file lines
+                const cleanedLines = lines.filter(l => !l.trim().startsWith('- [ ]') && !l.trim().startsWith('> - [ ]') && !l.toLowerCase().includes('carried forward') && !l.toLowerCase().includes('incomplete tasks'));
+                const calloutBlock = this.buildGroupedCarriedForwardCallout(tasksToGroup, []);
+
+                if (hasHeader && headerEndIndex !== -1) {
+                    cleanedLines.splice(headerEndIndex + 1, 0, '', calloutBlock, '---');
+                    editor.setValue(cleanedLines.join('\n'));
+                } else {
+                    editor.setValue(calloutBlock + '\n---\n\n' + cleanedLines.join('\n'));
+                }
+
+                new Notice('Grouped tasks into collapsible project callouts');
+            }
+        });
+
         // Add command for release notes and support
         this.addCommand({
             id: 'open-whats-new',
@@ -541,13 +584,7 @@ export default class TimeBoxPlugin extends Plugin {
                         templateContent = this.insertUnderHeading(templateContent, ['brain dump', '🧠 Brain Dump', 'braindump'], brainDumps);
                     }
                 } else {
-                    let carriedContent = '## 📤 Carried forward from yesterday\n\n';
-                    if (incompleteTasks.length > 0) {
-                        carriedContent += '### Incomplete tasks\n' + incompleteTasks.join('\n') + '\n\n';
-                    }
-                    if (brainDumps.length > 0) {
-                        carriedContent += '### Brain dump items\n' + brainDumps.join('\n') + '\n\n';
-                    }
+                    const carriedContent = this.buildGroupedCarriedForwardCallout(incompleteTasks, brainDumps);
                     content += carriedContent + '---\n\n';
                 }
             }
@@ -555,6 +592,60 @@ export default class TimeBoxPlugin extends Plugin {
 
         content += templateContent;
         return content;
+    }
+
+    buildGroupedCarriedForwardCallout(incompleteTasks: string[], brainDumps: string[]): string {
+        if (incompleteTasks.length === 0 && brainDumps.length === 0) return '';
+
+        const projectGroups: Map<string, string[]> = new Map();
+        const generalTasks: string[] = [];
+
+        for (const rawTask of incompleteTasks) {
+            const task = rawTask.replace(/^>\s*/, '');
+            const linkMatch = task.match(/\[\[([^\]]+)\]\]/);
+            if (linkMatch && linkMatch[1]) {
+                const fullLink = linkMatch[1];
+                const projectName = fullLink.split('|')[0].replace(/^.*[\\/]/, '').replace(/\.md$/, '').trim();
+                if (!projectGroups.has(projectName)) {
+                    projectGroups.set(projectName, []);
+                }
+                projectGroups.get(projectName)!.push(task);
+            } else {
+                generalTasks.push(task);
+            }
+        }
+
+        let result = '> [!todo]- 📤 Carried forward from yesterday (Click to expand)\n';
+
+        for (const [projName, tasks] of projectGroups.entries()) {
+            result += `> > [!project]- 🌐 Project: ${projName}\n`;
+            for (const task of tasks) {
+                const cleanedTask = task.startsWith('-') ? task : `- ${task}`;
+                result += `> > ${cleanedTask}\n`;
+            }
+            result += `> \n`;
+        }
+
+        if (generalTasks.length > 0) {
+            result += `> > [!note]- 📋 General Tasks\n`;
+            for (const task of generalTasks) {
+                const cleanedTask = task.startsWith('-') ? task : `- ${task}`;
+                result += `> > ${cleanedTask}\n`;
+            }
+            result += `> \n`;
+        }
+
+        if (brainDumps.length > 0) {
+            result += `> > [!brain]- 🧠 Brain Dump Items\n`;
+            for (const item of brainDumps) {
+                const cleanedItem = item.startsWith('-') ? item : `- ${item}`;
+                result += `> > ${cleanedItem}\n`;
+            }
+            result += `> \n`;
+        }
+
+        result += '\n';
+        return result;
     }
 
     insertUnderHeading(content: string, headingKeywords: string[], items: string[]): string {
@@ -612,7 +703,7 @@ export default class TimeBoxPlugin extends Plugin {
         const file = abstractFile;
         const currentContent = await this.app.vault.read(file);
         
-        if (currentContent.includes('## 📤 Carried forward') || currentContent.includes('## 📤 Carried Forward')) {
+        if (currentContent.includes('Carried forward from yesterday') || currentContent.includes('Carried Forward')) {
             new Notice('Items already carried forward today.');
             return;
         }
@@ -641,14 +732,7 @@ export default class TimeBoxPlugin extends Plugin {
                 newContent = this.insertUnderHeading(newContent, ['brain dump', '🧠 Brain Dump', 'braindump'], filteredBrainDumps);
             }
         } else {
-            let carriedContent = '## 📤 Carried forward from yesterday\n\n';
-            if (incompleteTasks.length > 0) {
-                carriedContent += '### Incomplete tasks\n' + incompleteTasks.join('\n') + '\n\n';
-            }
-            if (brainDumps.length > 0) {
-                carriedContent += '### Brain dump items\n' + brainDumps.join('\n') + '\n\n';
-            }
-
+            const carriedContent = this.buildGroupedCarriedForwardCallout(incompleteTasks, brainDumps);
             const lines = currentContent.split('\n');
             const titleIndex = lines.findIndex(line => line.startsWith('# Timebox'));
             if (titleIndex !== -1) {
@@ -660,7 +744,7 @@ export default class TimeBoxPlugin extends Plugin {
         }
 
         await this.app.vault.modify(file, newContent);
-        new Notice('Carried forward incomplete items.');
+        new Notice('Carried forward incomplete items grouped by project.');
     }
 
     async wasTaskCompletedBetween(incompleteTaskText: string, daysBackFromOriginal: number): Promise<boolean> {
