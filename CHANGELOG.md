@@ -1,5 +1,17 @@
 # Changelog - TimeBox Daily
 
+## [1.3.2] - 2026-08-12
+
+### Added & Improved
+- 🗂 **Collapsible Project Dashboard Cards**: Collapse/expand any project card in the sidebar to focus on one project at a time.
+- 🌿 **Nested Subtasks & Task Management**: Added subtask support, expand/collapse chevron toggles, completion count badges (`1/3`), and quick `Add Subtask` button.
+- 🎯 **6-Dot Drag-and-Drop Task Reordering**: Reorder tasks in project cards with smooth drag handles and editor keyboard commands (`Move task line up / down`).
+- 📦 **Auto-Grouping Project Tasks into Collapsible Callouts**: Carried-forward tasks and daily note tasks linked to projects are automatically grouped into native collapsible callouts (`> [!todo]-`), while general tasks remain as standard checklists.
+- 🧹 **Note Task Cleaner Command**: Editor right-click menu and command (`Group active note tasks into collapsible project callouts`) to instantly clean up and structure any daily note.
+- ◀▶ **Navigation Link Fix**: Intercepts click events on `◀ Yesterday | Tomorrow ▶` links to open yesterday's or tomorrow's daily note cleanly.
+
+---
+
 ## [1.3.1] - 2026-07-25
 
 ### Fixed
