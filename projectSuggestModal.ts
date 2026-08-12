@@ -19,6 +19,7 @@ export class ProjectSuggestModal extends FuzzySuggestModal<TFile> {
         return item.basename;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     onChooseItem(item: TFile, evt: MouseEvent | KeyboardEvent): void {
         this.onSelect(item);
     }

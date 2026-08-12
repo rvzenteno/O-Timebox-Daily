@@ -10,7 +10,7 @@ export class ProjectDashboardView extends ItemView {
 
     private isRendering = false;
     private renderRequested = false;
-    private renderDebounceTimer: NodeJS.Timeout | null = null;
+    private renderDebounceTimer: number | null = null;
     private draggedTaskIndex: number | null = null;
     private draggedProjectFilePath: string | null = null;
 
@@ -36,6 +36,12 @@ export class ProjectDashboardView extends ItemView {
         await this.render();
 
         this.registerEvent(
+            this.app.workspace.on('file-open', () => {
+                this.debouncedRender();
+            })
+        );
+
+        this.registerEvent(
             this.app.vault.on('modify', (file) => {
                 if (file instanceof TFile) {
                     if (this.projectManager.isInternalModification(file.path)) return;
@@ -47,9 +53,9 @@ export class ProjectDashboardView extends ItemView {
 
     debouncedRender(): void {
         if (this.renderDebounceTimer) {
-            clearTimeout(this.renderDebounceTimer);
+            window.clearTimeout(this.renderDebounceTimer);
         }
-        this.renderDebounceTimer = setTimeout(() => {
+        this.renderDebounceTimer = window.setTimeout(() => {
             void this.render();
         }, 300);
     }
@@ -59,27 +65,23 @@ export class ProjectDashboardView extends ItemView {
             this.renderRequested = true;
             return;
         }
+
         this.isRendering = true;
-
         try {
-            const projectsData = await this.projectManager.getAllProjectsData(this.plugin.settings.projectsFolder);
-
             const container = this.contentEl;
             container.empty();
-            container.addClass('timebox-dashboard-container');
+            container.addClass('timebox-project-view');
 
-            // Header
-            const headerEl = container.createDiv({ cls: 'timebox-dashboard-header' });
-            headerEl.createEl('h4', { text: '🗂 Projects Dashboard' });
+            const headerEl = container.createDiv({ cls: 'timebox-view-header' });
+            headerEl.createEl('h4', { text: 'Project Dashboard' });
 
-            const actionsEl = headerEl.createDiv({ cls: 'timebox-dashboard-actions' });
-            
-            const isHiding = this.plugin.settings.hideCompletedProjectTasks;
-            const toggleCompletedBtn = actionsEl.createEl('button', {
-                cls: 'clickable-icon',
-                title: isHiding ? 'Show completed tasks' : 'Hide completed tasks'
+            const controlsEl = headerEl.createDiv({ cls: 'timebox-header-controls' });
+
+            const toggleCompletedBtn = controlsEl.createEl('button', {
+                cls: 'timebox-task-icon-btn',
+                title: this.plugin.settings.hideCompletedProjectTasks ? 'Show completed tasks' : 'Hide completed tasks'
             });
-            setIcon(toggleCompletedBtn, isHiding ? 'eye-off' : 'eye');
+            setIcon(toggleCompletedBtn, this.plugin.settings.hideCompletedProjectTasks ? 'eye-off' : 'eye');
             toggleCompletedBtn.addEventListener('click', () => {
                 void (async () => {
                     this.plugin.settings.hideCompletedProjectTasks = !this.plugin.settings.hideCompletedProjectTasks;
@@ -88,24 +90,23 @@ export class ProjectDashboardView extends ItemView {
                 })();
             });
 
-            const refreshBtn = actionsEl.createEl('button', { cls: 'clickable-icon', title: 'Refresh dashboard' });
+            const refreshBtn = controlsEl.createEl('button', {
+                cls: 'timebox-task-icon-btn',
+                title: 'Refresh dashboard'
+            });
             setIcon(refreshBtn, 'refresh-cw');
             refreshBtn.addEventListener('click', () => {
                 void this.render();
             });
 
-            const newProjBtn = actionsEl.createEl('button', { cls: 'timebox-btn-primary', text: '+ New Project' });
-            newProjBtn.addEventListener('click', () => {
-                void this.promptCreateProject();
-            });
+            const projectsData = await this.projectManager.getAllProjectsData(
+                this.plugin.settings.projectsFolder
+            );
 
-            // Projects List
             if (projectsData.length === 0) {
-                const emptyEl = container.createDiv({ cls: 'timebox-dashboard-empty' });
-                emptyEl.createEl('p', { text: `No project notes found in "${this.plugin.settings.projectsFolder}" folder.` });
-                const createFirstBtn = emptyEl.createEl('button', { text: 'Create First Project' });
-                createFirstBtn.addEventListener('click', () => {
-                    void this.promptCreateProject();
+                container.createDiv({
+                    cls: 'timebox-empty-view',
+                    text: `No project notes found in "${this.plugin.settings.projectsFolder}". Create an .md file in that folder to get started!`
                 });
                 return;
             }
@@ -147,7 +148,7 @@ export class ProjectDashboardView extends ItemView {
         setIcon(toggleChevron, isCollapsed ? 'chevron-right' : 'chevron-down');
 
         // Project Title
-        const titleEl = headerLeft.createSpan({ cls: 'timebox-project-title', text: proj.name });
+        headerLeft.createSpan({ cls: 'timebox-project-title', text: proj.name });
 
         // Open Note Button (📄 / file icon)
         const openNoteBtn = headerLeft.createEl('button', {
@@ -184,13 +185,13 @@ export class ProjectDashboardView extends ItemView {
         // Card Body Container (collapsible)
         const cardBody = cardEl.createDiv({ cls: 'timebox-project-card-body' });
         if (isCollapsed) {
-            cardBody.style.display = 'none';
+            cardBody.setCssStyles({ display: 'none' });
         }
 
         // Progress Bar
         const progressContainer = cardBody.createDiv({ cls: 'timebox-progress-container' });
         const progressFill = progressContainer.createDiv({ cls: 'timebox-progress-fill' });
-        progressFill.style.width = `${proj.progressPercent}%`;
+        progressFill.setCssStyles({ width: `${proj.progressPercent}%` });
 
         // Tasks List
         const tasksContainer = cardBody.createDiv({ cls: 'timebox-project-tasks' });
@@ -250,69 +251,71 @@ export class ProjectDashboardView extends ItemView {
         const isInputActive = this.activeSubtaskInputs.has(taskKey);
 
         const taskBlockEl = containerEl.createDiv({ cls: 'timebox-task-block' });
-        const taskRow = taskBlockEl.createDiv({
+        const taskRowEl = taskBlockEl.createDiv({
             cls: `timebox-task-row ${task.completed ? 'is-completed' : ''}`
         });
 
-        // 6-Dot Drag Handle Icon
-        taskRow.setAttribute('draggable', 'true');
-        const dragHandle = taskRow.createDiv({
-            cls: 'timebox-drag-handle',
-            title: 'Drag handle (⋮⋮) to reorder task'
-        });
-        setIcon(dragHandle, 'grip-vertical');
+        // HTML5 Drag and Drop Handlers for task reordering
+        taskRowEl.setAttribute('draggable', 'true');
 
-        // Drag & Drop Event Handlers
-        taskRow.addEventListener('dragstart', (e) => {
+        taskRowEl.addEventListener('dragstart', (e) => {
             this.draggedTaskIndex = topLevelIndex;
             this.draggedProjectFilePath = proj.file.path;
-            taskRow.addClass('is-dragging');
+            taskRowEl.addClass('is-dragging');
             if (e.dataTransfer) {
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/plain', `${topLevelIndex}`);
             }
         });
 
-        taskRow.addEventListener('dragend', () => {
-            taskRow.removeClass('is-dragging');
+        taskRowEl.addEventListener('dragend', () => {
+            taskRowEl.removeClass('is-dragging');
             this.draggedTaskIndex = null;
             this.draggedProjectFilePath = null;
+            const dropTargets = containerEl.querySelectorAll('.drop-target');
+            dropTargets.forEach(el => el.removeClass('drop-target'));
         });
 
-        taskRow.addEventListener('dragover', (e) => {
-            if (this.draggedProjectFilePath === proj.file.path && this.draggedTaskIndex !== null) {
-                e.preventDefault();
-                taskRow.addClass('drop-target');
+        taskRowEl.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (this.draggedProjectFilePath === proj.file.path && this.draggedTaskIndex !== topLevelIndex) {
+                taskRowEl.addClass('drop-target');
             }
         });
 
-        taskRow.addEventListener('dragleave', () => {
-            taskRow.removeClass('drop-target');
+        taskRowEl.addEventListener('dragleave', () => {
+            taskRowEl.removeClass('drop-target');
         });
 
-        taskRow.addEventListener('drop', (e) => {
+        taskRowEl.addEventListener('drop', (e) => {
             e.preventDefault();
-            taskRow.removeClass('drop-target');
-
+            taskRowEl.removeClass('drop-target');
             if (
                 this.draggedProjectFilePath === proj.file.path &&
                 this.draggedTaskIndex !== null &&
                 this.draggedTaskIndex !== topLevelIndex
             ) {
-                const src = this.draggedTaskIndex;
-                const tgt = topLevelIndex;
+                const sourceIdx = this.draggedTaskIndex;
+                const targetIdx = topLevelIndex;
                 void (async () => {
-                    await this.projectManager.reorderProjectTasks(proj.file, src, tgt);
+                    await this.projectManager.reorderProjectTasks(proj.file, sourceIdx, targetIdx);
                     void this.render();
                 })();
             }
         });
 
-        // Expand / Collapse Chevron Button (if task has subtasks)
+        // 6-Dot Drag Handle (⋮⋮)
+        const dragHandle = taskRowEl.createDiv({
+            cls: 'timebox-drag-handle',
+            title: 'Drag to reorder task'
+        });
+        setIcon(dragHandle, 'grip-vertical');
+
+        // Subtask Expand/Collapse Toggle Button
         if (hasSubtasks) {
-            const toggleSubtasksBtn = taskRow.createEl('button', {
+            const toggleSubtasksBtn = taskRowEl.createEl('button', {
                 cls: 'timebox-task-icon-btn timebox-toggle-subtasks-btn',
-                title: isSubtasksExpanded ? 'Hide subtasks' : 'Show subtasks'
+                title: isSubtasksExpanded ? 'Collapse subtasks' : 'Expand subtasks'
             });
             setIcon(toggleSubtasksBtn, isSubtasksExpanded ? 'chevron-down' : 'chevron-right');
             toggleSubtasksBtn.addEventListener('click', (e) => {
@@ -321,15 +324,15 @@ export class ProjectDashboardView extends ItemView {
                     this.expandedSubtasks.delete(taskKey);
                     this.expandedSubtasks.add(`collapsed::${taskKey}`);
                 } else {
-                    this.expandedSubtasks.add(taskKey);
                     this.expandedSubtasks.delete(`collapsed::${taskKey}`);
+                    this.expandedSubtasks.add(taskKey);
                 }
                 void this.render();
             });
         }
 
         // Checkbox
-        const checkbox = taskRow.createEl('input', { type: 'checkbox' });
+        const checkbox = taskRowEl.createEl('input', { type: 'checkbox' });
         checkbox.checked = task.completed;
         checkbox.addEventListener('change', () => {
             void (async () => {
@@ -344,56 +347,54 @@ export class ProjectDashboardView extends ItemView {
             })();
         });
 
-        // Task Text & Count Badge
-        const textWrapper = taskRow.createSpan({ cls: 'timebox-task-text' });
-        textWrapper.createSpan({ text: task.text });
+        // Task Text
+        taskRowEl.createSpan({ cls: 'timebox-task-text', text: task.text });
 
+        // Subtask Count Badge (e.g. 1/3)
         if (hasSubtasks) {
-            const completedSubCount = task.subtasks.filter(s => s.completed).length;
-            textWrapper.createSpan({
+            const completedCount = task.subtasks.filter(st => st.completed).length;
+            const totalSubtasks = task.subtasks.length;
+            taskRowEl.createSpan({
                 cls: 'timebox-subtask-count-badge',
-                text: ` (${completedSubCount}/${task.subtasks.length})`
+                text: `(${completedCount}/${totalSubtasks})`
             });
         }
 
         // Action Buttons Group
-        const actionsGroup = taskRow.createDiv({ cls: 'timebox-task-actions' });
+        const actionsGroup = taskRowEl.createDiv({ cls: 'timebox-task-actions' });
 
-        if (!task.completed) {
-            const addToTodayBtn = actionsGroup.createEl('button', {
-                cls: 'timebox-task-today-btn',
-                text: '+ Today',
-                title: "Add task to today's TimeBox note"
-            });
+        // Push to Today button (+ Today)
+        const pushBtn = actionsGroup.createEl('button', {
+            cls: 'timebox-task-action-btn',
+            text: '+ Today',
+            title: "Add this task to Today's TimeBox"
+        });
+        pushBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            void (async () => {
+                await this.projectManager.addProjectTaskToToday(
+                    task.text,
+                    proj.file,
+                    this.plugin.settings.timeBoxFolder,
+                    this.plugin.settings.dateFormat
+                );
+                void this.render();
+            })();
+        });
 
-            addToTodayBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                void (async () => {
-                    await this.projectManager.addProjectTaskToToday(
-                        task.text,
-                        proj.file,
-                        this.plugin.settings.timeBoxFolder,
-                        this.plugin.settings.dateFormat
-                    );
-                })();
-            });
-        }
-
-        // Add Subtask Button (Positioned right BEFORE delete button)
-        const addSubtaskIconBtn = actionsGroup.createEl('button', {
-            cls: `timebox-task-icon-btn timebox-add-subtask-btn ${isInputActive ? 'is-active' : ''}`,
+        // Add Subtask Button (List-Plus icon)
+        const addSubtaskBtn = actionsGroup.createEl('button', {
+            cls: 'timebox-task-icon-btn timebox-add-subtask-btn',
             title: 'Add subtask'
         });
-        setIcon(addSubtaskIconBtn, 'list-plus');
-        addSubtaskIconBtn.addEventListener('click', (e) => {
+        setIcon(addSubtaskBtn, 'list-plus');
+        addSubtaskBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            this.expandedSubtasks.add(taskKey);
-            this.expandedSubtasks.delete(`collapsed::${taskKey}`);
-
             if (this.activeSubtaskInputs.has(taskKey)) {
                 this.activeSubtaskInputs.delete(taskKey);
             } else {
                 this.activeSubtaskInputs.add(taskKey);
+                this.expandedSubtasks.add(taskKey);
             }
             void this.render();
         });
@@ -415,7 +416,7 @@ export class ProjectDashboardView extends ItemView {
         // Nested Subtasks Container
         const subtasksContainer = taskBlockEl.createDiv({ cls: 'timebox-subtasks-container' });
         if (!isSubtasksExpanded && !isInputActive) {
-            subtasksContainer.style.display = 'none';
+            subtasksContainer.setCssStyles({ display: 'none' });
         }
 
         if (hasSubtasks && isSubtasksExpanded) {
@@ -460,7 +461,7 @@ export class ProjectDashboardView extends ItemView {
             }
         }
 
-        // Add Subtask Row (Only rendered/visible when 'Add subtask' button is active)
+        // Inline Quick Add Subtask Input Row
         if (isInputActive) {
             const addSubtaskRow = subtasksContainer.createDiv({ cls: 'timebox-quick-add-subtask-row' });
             const subInput = addSubtaskRow.createEl('input', {
@@ -469,7 +470,7 @@ export class ProjectDashboardView extends ItemView {
             });
             const subAddBtn = addSubtaskRow.createEl('button', { text: 'Add' });
 
-            setTimeout(() => subInput.focus(), 50);
+            window.setTimeout(() => subInput.focus(), 50);
 
             const handleAddSubtask = async () => {
                 const val = subInput.value.trim();

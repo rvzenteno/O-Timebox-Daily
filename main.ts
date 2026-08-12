@@ -585,10 +585,8 @@ export default class TimeBoxPlugin extends Plugin {
             if (linkMatch && linkMatch[1]) {
                 const fullLink = linkMatch[1];
                 const projectName = fullLink.split('|')[0].replace(/^.*[\\/]/, '').replace(/\.md$/, '').trim();
-                if (!projectGroups.has(projectName)) {
-                    projectGroups.set(projectName, []);
-                }
-                projectGroups.get(projectName)!.push(task);
+                const group = projectGroups.get(projectName);
+                if (group) group.push(task);
             } else {
                 generalTasks.push(task);
             }
@@ -721,7 +719,8 @@ export default class TimeBoxPlugin extends Plugin {
                     if (!projectMap.has(matchedProject)) {
                         projectMap.set(matchedProject, new Set());
                     }
-                    projectMap.get(matchedProject)!.add(formattedTask);
+                    const projSet = projectMap.get(matchedProject);
+                    if (projSet) projSet.add(formattedTask);
                 } else {
                     generalTasksSet.add(formattedTask);
                 }

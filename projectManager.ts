@@ -1,4 +1,4 @@
-import { App, TFile, Notice, Editor, moment } from 'obsidian';
+import { App, TFile, TFolder, Notice, Editor, moment } from 'obsidian';
 
 const getMoment = (inp?: unknown, fmt?: unknown, strict?: boolean): moment.Moment => 
     (moment as unknown as (i?: unknown, f?: unknown, s?: boolean) => moment.Moment)(inp, fmt, strict);
@@ -36,7 +36,7 @@ export class ProjectManager {
 
     markInternalModification(path: string): void {
         this.internalModifiedPaths.add(path);
-        setTimeout(() => {
+        window.setTimeout(() => {
             this.internalModifiedPaths.delete(path);
         }, 1500);
     }
@@ -49,21 +49,21 @@ export class ProjectManager {
      * Get all project files located in the designated projects folder.
      */
     getProjectFiles(projectsFolder: string): TFile[] {
+        const folder = this.app.vault.getFolderByPath(projectsFolder);
+        if (!folder) return [];
+
         const files: TFile[] = [];
-        const vaultFiles = this.app.vault.getFiles();
-
-        const cleanedFolder = projectsFolder.replace(/\/$/, '').toLowerCase();
-
-        for (const file of vaultFiles) {
-            if (file.extension !== 'md') continue;
-
-            const inProjectsFolder = file.path.toLowerCase().startsWith(cleanedFolder + '/');
-
-            if (inProjectsFolder) {
-                files.push(file);
+        const collectMarkdownFiles = (targetFolder: TFolder) => {
+            for (const child of targetFolder.children) {
+                if (child instanceof TFile && child.extension === 'md') {
+                    files.push(child);
+                } else if (child instanceof TFolder) {
+                    collectMarkdownFiles(child);
+                }
             }
-        }
+        };
 
+        collectMarkdownFiles(folder);
         return files.sort((a, b) => a.basename.localeCompare(b.basename));
     }
 
@@ -393,9 +393,7 @@ created: ${getMoment().format('YYYY-MM-DD')}
 
         const content = await this.app.vault.read(projectFile);
         const lines = content.split('\n');
-
-        // Extract task blocks (lines array for each top level task and its subtasks)
-        const taskBlocks = tasks.map(task => lines.slice(task.lineIndex, task.lineIndex + task.lineCount));
+        const taskBlocks: string[][] = tasks.map(task => lines.slice(task.lineIndex, task.lineIndex + task.lineCount));
 
         // Reorder taskBlocks array
         const [movedBlock] = taskBlocks.splice(sourceIndex, 1);
@@ -405,7 +403,7 @@ created: ${getMoment().format('YYYY-MM-DD')}
         const firstTaskLineIndex = tasks[0].lineIndex;
         const lastTaskEndIndex = tasks[tasks.length - 1].lineIndex + tasks[tasks.length - 1].lineCount;
 
-        const reorderedLines = taskBlocks.flat();
+        const reorderedLines: string[] = taskBlocks.flat();
         lines.splice(firstTaskLineIndex, lastTaskEndIndex - firstTaskLineIndex, ...reorderedLines);
 
         this.markInternalModification(projectFile.path);
@@ -422,7 +420,7 @@ created: ${getMoment().format('YYYY-MM-DD')}
 
         const fileContent = editor.getValue();
         const lines = fileContent.split('\n');
-        
+
         const currentLine = lines[currentLineIndex];
         if (!currentLine.trim().startsWith('- [')) {
             new Notice('Cursor must be on a task line to move it');
@@ -430,7 +428,8 @@ created: ${getMoment().format('YYYY-MM-DD')}
         }
 
         // Parse line blocks for current file
-        const taskBlocks: { start: number; count: number; lines: string[] }[] = [];
+        interface EditorTaskBlock { start: number; count: number; lines: string[]; }
+        const taskBlocks: EditorTaskBlock[] = [];
         let i = 0;
         while (i < totalLines) {
             const line = lines[i];
