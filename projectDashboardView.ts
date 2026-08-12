@@ -1,5 +1,5 @@
 import { App, ItemView, WorkspaceLeaf, TFile, setIcon, Modal, Setting } from 'obsidian';
-import { ProjectManager, ProjectData } from './projectManager';
+import { ProjectManager, ProjectData, ProjectTask } from './projectManager';
 import TimeBoxPlugin from './main';
 
 export const TIMEBOX_PROJECT_VIEW_TYPE = 'timebox-project-dashboard';
@@ -7,6 +7,12 @@ export const TIMEBOX_PROJECT_VIEW_TYPE = 'timebox-project-dashboard';
 export class ProjectDashboardView extends ItemView {
     plugin: TimeBoxPlugin;
     projectManager: ProjectManager;
+
+    private isRendering = false;
+    private renderRequested = false;
+    private renderDebounceTimer: NodeJS.Timeout | null = null;
+    private draggedTaskIndex: number | null = null;
+    private draggedProjectFilePath: string | null = null;
 
     constructor(leaf: WorkspaceLeaf, plugin: TimeBoxPlugin) {
         super(leaf);
@@ -29,70 +35,92 @@ export class ProjectDashboardView extends ItemView {
     async onOpen(): Promise<void> {
         await this.render();
 
-        // Register vault listeners to refresh view when files change
         this.registerEvent(
             this.app.vault.on('modify', (file) => {
                 if (file instanceof TFile) {
-                    void this.render();
+                    if (this.projectManager.isInternalModification(file.path)) return;
+                    this.debouncedRender();
                 }
             })
         );
     }
 
-    async render(): Promise<void> {
-        const container = this.contentEl;
-        container.empty();
-        container.addClass('timebox-dashboard-container');
-
-        // Header
-        const headerEl = container.createDiv({ cls: 'timebox-dashboard-header' });
-        headerEl.createEl('h4', { text: '🗂 Projects Dashboard' });
-
-        const actionsEl = headerEl.createDiv({ cls: 'timebox-dashboard-actions' });
-        
-        const isHiding = this.plugin.settings.hideCompletedProjectTasks;
-        const toggleCompletedBtn = actionsEl.createEl('button', {
-            cls: 'clickable-icon',
-            title: isHiding ? 'Show completed tasks' : 'Hide completed tasks'
-        });
-        setIcon(toggleCompletedBtn, isHiding ? 'eye-off' : 'eye');
-        toggleCompletedBtn.addEventListener('click', () => {
-            void (async () => {
-                this.plugin.settings.hideCompletedProjectTasks = !this.plugin.settings.hideCompletedProjectTasks;
-                await this.plugin.saveSettings();
-                void this.render();
-            })();
-        });
-
-        const refreshBtn = actionsEl.createEl('button', { cls: 'clickable-icon', title: 'Refresh dashboard' });
-        setIcon(refreshBtn, 'refresh-cw');
-        refreshBtn.addEventListener('click', () => {
+    debouncedRender(): void {
+        if (this.renderDebounceTimer) {
+            clearTimeout(this.renderDebounceTimer);
+        }
+        this.renderDebounceTimer = setTimeout(() => {
             void this.render();
-        });
+        }, 300);
+    }
 
-        const newProjBtn = actionsEl.createEl('button', { cls: 'timebox-btn-primary', text: '+ New Project' });
-        newProjBtn.addEventListener('click', () => {
-            void this.promptCreateProject();
-        });
-
-        // Projects List
-        await this.projectManager.scanDailyNotesForProjectLinks(this.plugin.settings.timeBoxFolder, this.plugin.settings.projectsFolder);
-        const projectsData = await this.projectManager.getAllProjectsData(this.plugin.settings.projectsFolder);
-
-        if (projectsData.length === 0) {
-            const emptyEl = container.createDiv({ cls: 'timebox-dashboard-empty' });
-            emptyEl.createEl('p', { text: `No project notes found in "${this.plugin.settings.projectsFolder}" folder.` });
-            const createFirstBtn = emptyEl.createEl('button', { text: 'Create First Project' });
-            createFirstBtn.addEventListener('click', () => {
-                void this.promptCreateProject();
-            });
+    async render(): Promise<void> {
+        if (this.isRendering) {
+            this.renderRequested = true;
             return;
         }
+        this.isRendering = true;
 
-        const projectListEl = container.createDiv({ cls: 'timebox-project-list' });
+        try {
+            const projectsData = await this.projectManager.getAllProjectsData(this.plugin.settings.projectsFolder);
 
-        for (const proj of projectsData) {
-            this.renderProjectCard(projectListEl, proj);
+            const container = this.contentEl;
+            container.empty();
+            container.addClass('timebox-dashboard-container');
+
+            // Header
+            const headerEl = container.createDiv({ cls: 'timebox-dashboard-header' });
+            headerEl.createEl('h4', { text: '🗂 Projects Dashboard' });
+
+            const actionsEl = headerEl.createDiv({ cls: 'timebox-dashboard-actions' });
+            
+            const isHiding = this.plugin.settings.hideCompletedProjectTasks;
+            const toggleCompletedBtn = actionsEl.createEl('button', {
+                cls: 'clickable-icon',
+                title: isHiding ? 'Show completed tasks' : 'Hide completed tasks'
+            });
+            setIcon(toggleCompletedBtn, isHiding ? 'eye-off' : 'eye');
+            toggleCompletedBtn.addEventListener('click', () => {
+                void (async () => {
+                    this.plugin.settings.hideCompletedProjectTasks = !this.plugin.settings.hideCompletedProjectTasks;
+                    await this.plugin.saveSettings();
+                    void this.render();
+                })();
+            });
+
+            const refreshBtn = actionsEl.createEl('button', { cls: 'clickable-icon', title: 'Refresh dashboard' });
+            setIcon(refreshBtn, 'refresh-cw');
+            refreshBtn.addEventListener('click', () => {
+                void this.render();
+            });
+
+            const newProjBtn = actionsEl.createEl('button', { cls: 'timebox-btn-primary', text: '+ New Project' });
+            newProjBtn.addEventListener('click', () => {
+                void this.promptCreateProject();
+            });
+
+            // Projects List
+            if (projectsData.length === 0) {
+                const emptyEl = container.createDiv({ cls: 'timebox-dashboard-empty' });
+                emptyEl.createEl('p', { text: `No project notes found in "${this.plugin.settings.projectsFolder}" folder.` });
+                const createFirstBtn = emptyEl.createEl('button', { text: 'Create First Project' });
+                createFirstBtn.addEventListener('click', () => {
+                    void this.promptCreateProject();
+                });
+                return;
+            }
+
+            const projectListEl = container.createDiv({ cls: 'timebox-project-list' });
+
+            for (const proj of projectsData) {
+                this.renderProjectCard(projectListEl, proj);
+            }
+        } finally {
+            this.isRendering = false;
+            if (this.renderRequested) {
+                this.renderRequested = false;
+                void this.render();
+            }
         }
     }
 
@@ -132,48 +160,9 @@ export class ProjectDashboardView extends ItemView {
                 : 'No checklist tasks found in this project.';
             tasksContainer.createDiv({ cls: 'timebox-task-empty', text: msg });
         } else {
-            for (const task of tasksToDisplay) {
-                const taskRow = tasksContainer.createDiv({
-                    cls: `timebox-task-row ${task.completed ? 'is-completed' : ''}`
-                });
-
-                const checkbox = taskRow.createEl('input', { type: 'checkbox' });
-                checkbox.checked = task.completed;
-                checkbox.addEventListener('change', () => {
-                    void (async () => {
-                        await this.projectManager.syncTaskCompletion(
-                            proj.file,
-                            task.text,
-                            checkbox.checked,
-                            this.plugin.settings.projectsFolder,
-                            this.plugin.settings.timeBoxFolder
-                        );
-                        void this.render();
-                    })();
-                });
-
-                taskRow.createSpan({ cls: 'timebox-task-text', text: task.text });
-
-                if (!task.completed) {
-                    const addToTodayBtn = taskRow.createEl('button', {
-                        cls: 'timebox-task-today-btn',
-                        text: '+ Today',
-                        title: "Add task to today's TimeBox note"
-                    });
-
-                    addToTodayBtn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        void (async () => {
-                            await this.projectManager.addProjectTaskToToday(
-                                task.text,
-                                proj.file,
-                                this.plugin.settings.timeBoxFolder,
-                                this.plugin.settings.dateFormat
-                            );
-                        })();
-                    });
-                }
-            }
+            tasksToDisplay.forEach((task, topLevelIndex) => {
+                this.renderTaskRow(tasksContainer, proj, task, topLevelIndex);
+            });
         }
 
         // Quick add task row
@@ -199,6 +188,194 @@ export class ProjectDashboardView extends ItemView {
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 void handleAdd();
+            }
+        });
+    }
+
+    renderTaskRow(containerEl: HTMLElement, proj: ProjectData, task: ProjectTask, topLevelIndex: number): void {
+        const taskBlockEl = containerEl.createDiv({ cls: 'timebox-task-block' });
+        const taskRow = taskBlockEl.createDiv({
+            cls: `timebox-task-row ${task.completed ? 'is-completed' : ''}`
+        });
+
+        // 6-Dot Drag Handle Icon
+        taskRow.setAttribute('draggable', 'true');
+        const dragHandle = taskRow.createDiv({
+            cls: 'timebox-drag-handle',
+            title: 'Drag handle (⋮⋮) to reorder task'
+        });
+        setIcon(dragHandle, 'grip-vertical');
+
+        // Drag & Drop Event Handlers
+        taskRow.addEventListener('dragstart', (e) => {
+            this.draggedTaskIndex = topLevelIndex;
+            this.draggedProjectFilePath = proj.file.path;
+            taskRow.addClass('is-dragging');
+            if (e.dataTransfer) {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', `${topLevelIndex}`);
+            }
+        });
+
+        taskRow.addEventListener('dragend', () => {
+            taskRow.removeClass('is-dragging');
+            this.draggedTaskIndex = null;
+            this.draggedProjectFilePath = null;
+        });
+
+        taskRow.addEventListener('dragover', (e) => {
+            if (this.draggedProjectFilePath === proj.file.path && this.draggedTaskIndex !== null) {
+                e.preventDefault();
+                taskRow.addClass('drop-target');
+            }
+        });
+
+        taskRow.addEventListener('dragleave', () => {
+            taskRow.removeClass('drop-target');
+        });
+
+        taskRow.addEventListener('drop', (e) => {
+            e.preventDefault();
+            taskRow.removeClass('drop-target');
+
+            if (
+                this.draggedProjectFilePath === proj.file.path &&
+                this.draggedTaskIndex !== null &&
+                this.draggedTaskIndex !== topLevelIndex
+            ) {
+                const src = this.draggedTaskIndex;
+                const tgt = topLevelIndex;
+                void (async () => {
+                    await this.projectManager.reorderProjectTasks(proj.file, src, tgt);
+                    void this.render();
+                })();
+            }
+        });
+
+        // Checkbox
+        const checkbox = taskRow.createEl('input', { type: 'checkbox' });
+        checkbox.checked = task.completed;
+        checkbox.addEventListener('change', () => {
+            void (async () => {
+                await this.projectManager.syncTaskCompletion(
+                    proj.file,
+                    task.text,
+                    checkbox.checked,
+                    this.plugin.settings.projectsFolder,
+                    this.plugin.settings.timeBoxFolder
+                );
+                void this.render();
+            })();
+        });
+
+        // Task Text
+        taskRow.createSpan({ cls: 'timebox-task-text', text: task.text });
+
+        // Action Buttons Group
+        const actionsGroup = taskRow.createDiv({ cls: 'timebox-task-actions' });
+
+        if (!task.completed) {
+            const addToTodayBtn = actionsGroup.createEl('button', {
+                cls: 'timebox-task-today-btn',
+                text: '+ Today',
+                title: "Add task to today's TimeBox note"
+            });
+
+            addToTodayBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                void (async () => {
+                    await this.projectManager.addProjectTaskToToday(
+                        task.text,
+                        proj.file,
+                        this.plugin.settings.timeBoxFolder,
+                        this.plugin.settings.dateFormat
+                    );
+                })();
+            });
+        }
+
+        // Delete Button (🗑️)
+        const deleteBtn = actionsGroup.createEl('button', {
+            cls: 'timebox-task-icon-btn timebox-delete-btn',
+            title: 'Delete task'
+        });
+        setIcon(deleteBtn, 'trash-2');
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            void (async () => {
+                await this.projectManager.deleteTaskFromProject(proj.file, task);
+                void this.render();
+            })();
+        });
+
+        // Nested Subtasks Container
+        const subtasksContainer = taskBlockEl.createDiv({ cls: 'timebox-subtasks-container' });
+
+        if (task.subtasks && task.subtasks.length > 0) {
+            const subtasksToDisplay = this.plugin.settings.hideCompletedProjectTasks
+                ? task.subtasks.filter(st => !st.completed)
+                : task.subtasks;
+
+            for (const subtask of subtasksToDisplay) {
+                const subtaskRow = subtasksContainer.createDiv({
+                    cls: `timebox-subtask-row ${subtask.completed ? 'is-completed' : ''}`
+                });
+
+                const subCheckbox = subtaskRow.createEl('input', { type: 'checkbox' });
+                subCheckbox.checked = subtask.completed;
+                subCheckbox.addEventListener('change', () => {
+                    void (async () => {
+                        await this.projectManager.syncTaskCompletion(
+                            proj.file,
+                            subtask.text,
+                            subCheckbox.checked,
+                            this.plugin.settings.projectsFolder,
+                            this.plugin.settings.timeBoxFolder
+                        );
+                        void this.render();
+                    })();
+                });
+
+                subtaskRow.createSpan({ cls: 'timebox-subtask-text', text: subtask.text });
+
+                const subDeleteBtn = subtaskRow.createEl('button', {
+                    cls: 'timebox-task-icon-btn timebox-delete-btn',
+                    title: 'Delete subtask'
+                });
+                setIcon(subDeleteBtn, 'trash-2');
+                subDeleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    void (async () => {
+                        await this.projectManager.deleteTaskFromProject(proj.file, subtask);
+                        void this.render();
+                    })();
+                });
+            }
+        }
+
+        // Add Subtask Row
+        const addSubtaskRow = subtasksContainer.createDiv({ cls: 'timebox-quick-add-subtask-row' });
+        const subInput = addSubtaskRow.createEl('input', {
+            type: 'text',
+            placeholder: '+ Subtask...'
+        });
+        const subAddBtn = addSubtaskRow.createEl('button', { text: '+' });
+
+        const handleAddSubtask = async () => {
+            const val = subInput.value.trim();
+            if (val) {
+                await this.projectManager.addSubtaskToProject(proj.file, task.lineIndex, val);
+                subInput.value = '';
+                void this.render();
+            }
+        };
+
+        subAddBtn.addEventListener('click', () => {
+            void handleAddSubtask();
+        });
+        subInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                void handleAddSubtask();
             }
         });
     }
@@ -248,3 +425,4 @@ export class ProjectDashboardView extends ItemView {
         modal.open();
     }
 }
+

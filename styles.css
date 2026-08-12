@@ -525,4 +525,120 @@ a.timebox-github-btn {
     justify-content: flex-end;
 }
 
+/* Drag handle, subtask, and task action controls */
+.timebox-task-block {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.timebox-drag-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    color: var(--text-muted);
+    opacity: 0.5;
+    padding: 0 2px;
+    border-radius: 3px;
+    transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.timebox-drag-handle:hover {
+    opacity: 1;
+    background-color: var(--background-modifier-hover);
+}
+
+.timebox-task-row.is-dragging {
+    opacity: 0.4;
+    background-color: var(--background-primary-alt);
+    border: 1px dashed var(--interactive-accent);
+}
+
+.timebox-task-row.drop-target {
+    border-top: 2px solid var(--interactive-accent);
+}
+
+.timebox-task-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.timebox-task-icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    padding: 2px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.timebox-task-icon-btn:hover {
+    color: var(--text-normal);
+    background-color: var(--background-modifier-hover);
+}
+
+.timebox-delete-btn:hover {
+    color: var(--text-error);
+    background-color: var(--background-modifier-error);
+}
+
+/* Subtasks styling */
+.timebox-subtasks-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-left: 22px;
+    border-left: 2px solid var(--background-modifier-border);
+    padding-left: 8px;
+    margin-top: 2px;
+    margin-bottom: 4px;
+}
+
+.timebox-subtask-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82em;
+    padding: 2px 0;
+    color: var(--text-muted);
+}
+
+.timebox-subtask-row.is-completed .timebox-subtask-text {
+    text-decoration: line-through;
+    opacity: 0.5;
+}
+
+.timebox-subtask-text {
+    flex: 1;
+    overflow-wrap: anywhere;
+}
+
+.timebox-quick-add-subtask-row {
+    display: flex;
+    gap: 4px;
+    margin-top: 2px;
+}
+
+.timebox-quick-add-subtask-row input {
+    flex: 1;
+    font-size: 0.78em;
+    padding: 2px 6px;
+    border: 1px dashed var(--background-modifier-border);
+    border-radius: 3px;
+    background: transparent;
+}
+
+.timebox-quick-add-subtask-row button {
+    font-size: 0.75em;
+    padding: 2px 6px;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+
 

@@ -118,6 +118,24 @@ export default class TimeBoxPlugin extends Plugin {
             }
         });
 
+        // Add command to move task line up
+        this.addCommand({
+            id: 'move-task-up',
+            name: 'Move active task line up',
+            editorCallback: async (editor: Editor) => {
+                await this.projectManager.moveTaskLineInEditor(editor, 'up');
+            }
+        });
+
+        // Add command to move task line down
+        this.addCommand({
+            id: 'move-task-down',
+            name: 'Move active task line down',
+            editorCallback: async (editor: Editor) => {
+                await this.projectManager.moveTaskLineInEditor(editor, 'down');
+            }
+        });
+
         // Add command to move task to tomorrow
         this.addCommand({
             id: 'move-task-to-tomorrow',
@@ -141,6 +159,22 @@ export default class TimeBoxPlugin extends Plugin {
             this.app.workspace.on('editor-menu', (menu, editor) => {
                 menu.addItem((item) => {
                     item
+                        .setTitle('Move task line up')
+                        .setIcon('arrow-up')
+                        .onClick(async () => {
+                            await this.projectManager.moveTaskLineInEditor(editor, 'up');
+                        });
+                });
+                menu.addItem((item) => {
+                    item
+                        .setTitle('Move task line down')
+                        .setIcon('arrow-down')
+                        .onClick(async () => {
+                            await this.projectManager.moveTaskLineInEditor(editor, 'down');
+                        });
+                });
+                menu.addItem((item) => {
+                    item
                         .setTitle('Move task to tomorrow')
                         .setIcon('arrow-right-circle')
                         .onClick(async () => {
@@ -158,61 +192,70 @@ export default class TimeBoxPlugin extends Plugin {
             })
         );
 
-        // Bi-directional task status sync & auto-push event listener
+        // Bi-directional task status sync & auto-push event listener (debounced & guarded)
+        let modifyDebounceTimer: NodeJS.Timeout | null = null;
+
         this.registerEvent(
-            this.app.vault.on('modify', async (file) => {
+            this.app.vault.on('modify', (file) => {
                 if (!(file instanceof TFile)) return;
+                if (this.projectManager.isInternalModification(file.path)) return;
 
                 const isDaily = file.path.startsWith(this.settings.timeBoxFolder);
                 const isProject = file.path.startsWith(this.settings.projectsFolder);
                 if (!isDaily && !isProject) return;
 
-                const content = await this.app.vault.read(file);
-                const lines = content.split('\n');
+                if (modifyDebounceTimer) clearTimeout(modifyDebounceTimer);
 
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (trimmed.startsWith('- [x]') || trimmed.startsWith('- [X]') || trimmed.startsWith('- [ ]')) {
-                        const isCompleted = trimmed.startsWith('- [x]') || trimmed.startsWith('- [X]');
-                        const cleanedText = trimmed.replace(/^-\s*\[[ xX]\]\s*/, '');
+                modifyDebounceTimer = setTimeout(async () => {
+                    if (this.projectManager.isInternalModification(file.path)) return;
 
-                        if (this.settings.enableProjectSync) {
-                            await this.projectManager.syncTaskCompletion(
-                                file,
-                                cleanedText,
-                                isCompleted,
-                                this.settings.projectsFolder,
-                                this.settings.timeBoxFolder
-                            );
-                        }
+                    const content = await this.app.vault.read(file);
+                    const lines = content.split('\n');
 
-                        if (isProject && !isCompleted && this.settings.autoPushProjectTasksToToday && cleanedText.length > 2) {
-                            await this.projectManager.addProjectTaskToToday(
-                                cleanedText,
-                                file,
-                                this.settings.timeBoxFolder,
-                                this.settings.dateFormat
-                            );
-                        }
+                    for (const line of lines) {
+                        const trimmed = line.trim();
+                        if (trimmed.startsWith('- [x]') || trimmed.startsWith('- [X]') || trimmed.startsWith('- [ ]')) {
+                            const isCompleted = trimmed.startsWith('- [x]') || trimmed.startsWith('- [X]');
+                            const cleanedText = trimmed.replace(/^-\s*\[[ xX]\]\s*/, '');
 
-                        if (isDaily && cleanedText.includes('[[')) {
-                            const linkRegex = /\[\[([^\]]+)\]\]/g;
-                            let match: RegExpExecArray | null;
-                            while ((match = linkRegex.exec(cleanedText)) !== null) {
-                                const projectLink = match[1];
-                                if (projectLink) {
-                                    const targetProject = this.projectManager.resolveProjectFile(projectLink, this.settings.projectsFolder);
-                                    if (targetProject) {
-                                        const baseTaskText = cleanedText.replace(/\[\[[^\]]+\]\]/g, '').trim();
-                                        if (baseTaskText.length > 1) {
-                                            await this.projectManager.addTaskToProject(targetProject, baseTaskText);
+                            if (this.settings.enableProjectSync) {
+                                await this.projectManager.syncTaskCompletion(
+                                    file,
+                                    cleanedText,
+                                    isCompleted,
+                                    this.settings.projectsFolder,
+                                    this.settings.timeBoxFolder
+                                );
+                            }
+
+                            if (isProject && !isCompleted && this.settings.autoPushProjectTasksToToday && cleanedText.length > 3) {
+                                await this.projectManager.addProjectTaskToToday(
+                                    cleanedText,
+                                    file,
+                                    this.settings.timeBoxFolder,
+                                    this.settings.dateFormat
+                                );
+                            }
+
+                            if (isDaily && cleanedText.includes('[[')) {
+                                const linkRegex = /\[\[([^\]]+)\]\]/g;
+                                let match: RegExpExecArray | null;
+                                while ((match = linkRegex.exec(cleanedText)) !== null) {
+                                    const projectLink = match[1];
+                                    if (projectLink) {
+                                        const targetProject = this.projectManager.resolveProjectFile(projectLink, this.settings.projectsFolder);
+                                        if (targetProject) {
+                                            const baseTaskText = cleanedText.replace(/\[\[[^\]]+\]\]/g, '').trim();
+                                            if (baseTaskText.length > 2) {
+                                                await this.projectManager.addTaskToProject(targetProject, baseTaskText);
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                }
+                }, 600);
             })
         );
 
