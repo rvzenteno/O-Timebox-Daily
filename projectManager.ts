@@ -245,19 +245,33 @@ created: ${getMoment().format('YYYY-MM-DD')}
 
         const lines = content.split('\n');
         let insertIndex = -1;
+        let isCallout = false;
 
         for (let i = 0; i < lines.length; i++) {
-            if (lines[i].toLowerCase().includes('tasks') || lines[i].includes('📋')) {
+            const line = lines[i];
+            if (line.toLowerCase().includes('tasks') || line.includes('📋')) {
                 insertIndex = i + 1;
-                while (insertIndex < lines.length && (lines[insertIndex].trim() === '' || lines[insertIndex].trim() === '- [ ]')) {
+                if (line.includes('> [!')) {
+                    isCallout = true;
+                }
+                while (
+                    insertIndex < lines.length &&
+                    (lines[insertIndex].trim() === '' ||
+                        lines[insertIndex].trim() === '- [ ]' ||
+                        lines[insertIndex].trim() === '> - [ ]' ||
+                        lines[insertIndex].trim() === '- [ ] ' ||
+                        lines[insertIndex].trim() === '> - [ ] ')
+                ) {
                     insertIndex++;
                 }
                 break;
             }
         }
 
+        const formattedTaskLine = isCallout ? `> ${taskLine}` : taskLine;
+
         if (insertIndex !== -1) {
-            lines.splice(insertIndex, 0, taskLine);
+            lines.splice(insertIndex, 0, formattedTaskLine);
             content = lines.join('\n');
         } else {
             content += `\n\n## 📋 Tasks\n${taskLine}\n`;

@@ -562,18 +562,23 @@ export default class TimeBoxPlugin extends Plugin {
         
         const lines = content.split('\n');
         let insertIndex = -1;
+        let isInsideCallout = false;
         
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
-            if (line.startsWith('#')) {
-                const lowerLine = line.toLowerCase();
+            const lowerLine = line.toLowerCase();
+            if (line.startsWith('#') || line.includes('> [!')) {
                 if (headingKeywords.some(keyword => lowerLine.includes(keyword.toLowerCase()))) {
                     insertIndex = i + 1;
-                    // Skip trailing blank lines or placeholder checklists immediately following the heading
+                    if (line.includes('> [!')) {
+                        isInsideCallout = true;
+                    }
                     while (insertIndex < lines.length && 
                            (lines[insertIndex].trim() === '' || 
                             lines[insertIndex].trim() === '- [ ]' ||
-                            lines[insertIndex].trim() === '- [ ] ')) {
+                            lines[insertIndex].trim() === '> - [ ]' ||
+                            lines[insertIndex].trim() === '- [ ] ' ||
+                            lines[insertIndex].trim() === '> - [ ] ')) {
                         insertIndex++;
                     }
                     break;
@@ -581,8 +586,12 @@ export default class TimeBoxPlugin extends Plugin {
             }
         }
         
+        const formattedItems = isInsideCallout
+            ? items.map(item => item.startsWith('>') ? item : `> ${item}`)
+            : items;
+
         if (insertIndex !== -1) {
-            lines.splice(insertIndex, 0, ...items);
+            lines.splice(insertIndex, 0, ...formattedItems);
             return lines.join('\n');
         } else {
             return content + '\n\n' + items.join('\n');
@@ -617,7 +626,6 @@ export default class TimeBoxPlugin extends Plugin {
 
         let newContent = currentContent;
         if (this.settings.rolloverMergeMode === 'merge') {
-            // Filter out items already in the document to prevent duplicates
             const filteredTasks = incompleteTasks.filter(task => !currentContent.includes(task));
             const filteredBrainDumps = brainDumps.filter(item => !currentContent.includes(item));
 
@@ -720,7 +728,7 @@ export default class TimeBoxPlugin extends Plugin {
                 }
 
                 if (this.settings.carryForwardTasks && line.includes('- [ ]') && !inTimeBlockSection) {
-                    const taskText = line.trim();
+                    const taskText = line.replace(/^>\s*/, '').trim();
                     if (taskText.length > 5) {
                         if (!incompleteTasks.includes(taskText)) {
                             const wasCompletedLater = await this.wasTaskCompletedBetween(taskText, daysBack);
