@@ -615,36 +615,39 @@ export default class TimeBoxPlugin extends Plugin {
             }
         }
 
-        let result = '> [!todo]- 📤 Carried forward from yesterday (Click to expand)\n';
+        let result = '## 📤 Carried forward from yesterday\n\n';
 
-        for (const [projName, tasks] of projectGroups.entries()) {
-            result += `> > [!project]- 🌐 Project: ${projName}\n`;
-            for (const task of tasks) {
-                const cleanedTask = task.startsWith('-') ? task : `- ${task}`;
-                result += `> > ${cleanedTask}\n`;
+        if (projectGroups.size > 0) {
+            result += '> [!todo]- 🌐 Carried Project Tasks (Click to expand)\n';
+            for (const [projName, tasks] of projectGroups.entries()) {
+                result += `> > [!project]- ${projName}\n`;
+                for (const task of tasks) {
+                    const cleanedTask = task.startsWith('-') ? task : `- ${task}`;
+                    result += `> > ${cleanedTask}\n`;
+                }
+                result += `> \n`;
             }
-            result += `> \n`;
+            result += '\n';
         }
 
         if (generalTasks.length > 0) {
-            result += `> > [!note]- 📋 General Tasks\n`;
+            result += '### Incomplete General Tasks\n';
             for (const task of generalTasks) {
                 const cleanedTask = task.startsWith('-') ? task : `- ${task}`;
-                result += `> > ${cleanedTask}\n`;
+                result += `${cleanedTask}\n`;
             }
-            result += `> \n`;
+            result += '\n';
         }
 
         if (brainDumps.length > 0) {
-            result += `> > [!brain]- 🧠 Brain Dump Items\n`;
+            result += '### Brain Dump Items\n';
             for (const item of brainDumps) {
                 const cleanedItem = item.startsWith('-') ? item : `- ${item}`;
-                result += `> > ${cleanedItem}\n`;
+                result += `${cleanedItem}\n`;
             }
-            result += `> \n`;
+            result += '\n';
         }
 
-        result += '\n';
         return result;
     }
 
