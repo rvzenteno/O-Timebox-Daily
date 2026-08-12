@@ -188,6 +188,52 @@ export default class TimeBoxPlugin extends Plugin {
             }
         });
 
+        // Register editor right-click menu item for grouping tasks
+        this.registerEvent(
+            this.app.workspace.on('editor-menu', (menu, editor) => {
+                menu.addItem((item) => {
+                    item.setTitle('Group tasks into collapsible project callouts')
+                        .setIcon('folder-kanban')
+                        .onClick(() => {
+                            const content = editor.getValue();
+                            const lines = content.split('\n');
+                            const tasksToGroup: string[] = [];
+                            let hasHeader = false;
+                            let headerEndIndex = -1;
+
+                            for (let i = 0; i < lines.length; i++) {
+                                const line = lines[i];
+                                const trimmed = line.trim();
+                                if (trimmed.startsWith('# Timebox')) {
+                                    hasHeader = true;
+                                    headerEndIndex = i;
+                                }
+                                if (trimmed.startsWith('- [ ]') || trimmed.startsWith('> - [ ]')) {
+                                    tasksToGroup.push(trimmed.replace(/^>\s*/, ''));
+                                }
+                            }
+
+                            if (tasksToGroup.length === 0) {
+                                new Notice('No unchecked tasks found to group');
+                                return;
+                            }
+
+                            const cleanedLines = lines.filter(l => !l.trim().startsWith('- [ ]') && !l.trim().startsWith('> - [ ]') && !l.toLowerCase().includes('carried forward') && !l.toLowerCase().includes('incomplete tasks'));
+                            const calloutBlock = this.buildGroupedCarriedForwardCallout(tasksToGroup, []);
+
+                            if (hasHeader && headerEndIndex !== -1) {
+                                cleanedLines.splice(headerEndIndex + 1, 0, '', calloutBlock, '---');
+                                editor.setValue(cleanedLines.join('\n'));
+                            } else {
+                                editor.setValue(calloutBlock + '\n---\n\n' + cleanedLines.join('\n'));
+                            }
+
+                            new Notice('Grouped tasks into collapsible project callouts');
+                        });
+                });
+            })
+        );
+
         // Add command for release notes and support
         this.addCommand({
             id: 'open-whats-new',
