@@ -276,6 +276,39 @@ export default class TimeBoxPlugin extends Plugin {
             })
         );
 
+        // Navigation links click handler for Yesterday / Tomorrow
+        this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
+            const target = evt.target as HTMLElement;
+            if (!target) return;
+
+            const linkEl = target.closest('.internal-link, a, .cm-hmd-internal-link') as HTMLElement;
+            if (!linkEl) return;
+
+            const text = (linkEl.innerText || linkEl.textContent || '').trim();
+            const href = (linkEl.getAttribute('data-href') || linkEl.getAttribute('href') || '').trim();
+
+            const isYesterday = text.includes('Yesterday') || text.includes('◀') || href.toLowerCase().includes('yesterday');
+            const isTomorrow = text.includes('Tomorrow') || text.includes('▶') || href.toLowerCase().includes('tomorrow');
+
+            if (isYesterday || isTomorrow) {
+                const activeFile = this.app.workspace.getActiveFile();
+                if (activeFile && activeFile.path.startsWith(this.settings.timeBoxFolder)) {
+                    evt.preventDefault();
+                    evt.stopPropagation();
+
+                    const dateStr = activeFile.basename;
+                    const fileDate = getMoment(dateStr, this.settings.dateFormat, true);
+                    const baseDate = fileDate.isValid() ? fileDate : getMoment();
+
+                    const targetDate = isYesterday
+                        ? getMoment(baseDate).subtract(1, 'days')
+                        : getMoment(baseDate).add(1, 'days');
+
+                    void this.openTimeBoxForDate(targetDate);
+                }
+            }
+        });
+
         // Auto-open on startup if enabled & check for version update notes
         this.app.workspace.onLayoutReady(() => {
             if (this.settings.autoOpenOnStartup) {
