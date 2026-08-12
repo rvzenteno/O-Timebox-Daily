@@ -403,7 +403,10 @@ created: ${getMoment().format('YYYY-MM-DD')}
         const firstTaskLineIndex = tasks[0].lineIndex;
         const lastTaskEndIndex = tasks[tasks.length - 1].lineIndex + tasks[tasks.length - 1].lineCount;
 
-        const reorderedLines: string[] = taskBlocks.flat();
+        const reorderedLines: string[] = [];
+        for (const block of taskBlocks) {
+            reorderedLines.push(...block);
+        }
         lines.splice(firstTaskLineIndex, lastTaskEndIndex - firstTaskLineIndex, ...reorderedLines);
 
         this.markInternalModification(projectFile.path);

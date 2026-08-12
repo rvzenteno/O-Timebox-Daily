@@ -215,7 +215,7 @@ export default class TimeBoxPlugin extends Plugin {
         );
 
         // Bi-directional task status sync & auto-push event listener (debounced & guarded)
-        let modifyDebounceTimer: NodeJS.Timeout | null = null;
+        let modifyDebounceTimer: number | null = null;
 
         this.registerEvent(
             this.app.vault.on('modify', (file) => {
@@ -226,9 +226,11 @@ export default class TimeBoxPlugin extends Plugin {
                 const isProject = file.path.startsWith(this.settings.projectsFolder);
                 if (!isDaily && !isProject) return;
 
-                if (modifyDebounceTimer) clearTimeout(modifyDebounceTimer);
+                if (modifyDebounceTimer !== null) {
+                    window.clearTimeout(modifyDebounceTimer);
+                }
 
-                modifyDebounceTimer = setTimeout(async () => {
+                modifyDebounceTimer = window.setTimeout(async () => {
                     if (this.projectManager.isInternalModification(file.path)) return;
 
                     const content = await this.app.vault.read(file);
