@@ -633,12 +633,24 @@ a.timebox-github-btn {
     background: transparent;
 }
 
-.timebox-quick-add-subtask-row button {
-    font-size: 0.75em;
-    padding: 2px 6px;
-    cursor: pointer;
-    border-radius: 3px;
+.timebox-add-subtask-btn:hover,
+.timebox-add-subtask-btn.is-active {
+    color: var(--interactive-accent);
+    background-color: var(--background-modifier-hover);
 }
+
+.timebox-toggle-subtasks-btn {
+    padding: 0;
+    margin-right: -2px;
+}
+
+.timebox-subtask-count-badge {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    margin-left: 4px;
+    font-weight: normal;
+}
+
 
 
 

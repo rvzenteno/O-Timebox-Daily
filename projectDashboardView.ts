@@ -192,7 +192,21 @@ export class ProjectDashboardView extends ItemView {
         });
     }
 
+    private expandedSubtasks: Set<string> = new Set();
+    private activeSubtaskInputs: Set<string> = new Set();
+
     renderTaskRow(containerEl: HTMLElement, proj: ProjectData, task: ProjectTask, topLevelIndex: number): void {
+        const taskKey = `${proj.file.path}::${task.lineIndex}`;
+        const hasSubtasks = task.subtasks && task.subtasks.length > 0;
+        
+        // Auto-expand subtasks by default if present unless user explicitly collapsed
+        if (hasSubtasks && !this.expandedSubtasks.has(`collapsed::${taskKey}`)) {
+            this.expandedSubtasks.add(taskKey);
+        }
+
+        const isSubtasksExpanded = this.expandedSubtasks.has(taskKey);
+        const isInputActive = this.activeSubtaskInputs.has(taskKey);
+
         const taskBlockEl = containerEl.createDiv({ cls: 'timebox-task-block' });
         const taskRow = taskBlockEl.createDiv({
             cls: `timebox-task-row ${task.completed ? 'is-completed' : ''}`
@@ -252,6 +266,26 @@ export class ProjectDashboardView extends ItemView {
             }
         });
 
+        // Expand / Collapse Chevron Button (if task has subtasks)
+        if (hasSubtasks) {
+            const toggleSubtasksBtn = taskRow.createEl('button', {
+                cls: 'timebox-task-icon-btn timebox-toggle-subtasks-btn',
+                title: isSubtasksExpanded ? 'Hide subtasks' : 'Show subtasks'
+            });
+            setIcon(toggleSubtasksBtn, isSubtasksExpanded ? 'chevron-down' : 'chevron-right');
+            toggleSubtasksBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (isSubtasksExpanded) {
+                    this.expandedSubtasks.delete(taskKey);
+                    this.expandedSubtasks.add(`collapsed::${taskKey}`);
+                } else {
+                    this.expandedSubtasks.add(taskKey);
+                    this.expandedSubtasks.delete(`collapsed::${taskKey}`);
+                }
+                void this.render();
+            });
+        }
+
         // Checkbox
         const checkbox = taskRow.createEl('input', { type: 'checkbox' });
         checkbox.checked = task.completed;
@@ -268,8 +302,17 @@ export class ProjectDashboardView extends ItemView {
             })();
         });
 
-        // Task Text
-        taskRow.createSpan({ cls: 'timebox-task-text', text: task.text });
+        // Task Text & Count Badge
+        const textWrapper = taskRow.createSpan({ cls: 'timebox-task-text' });
+        textWrapper.createSpan({ text: task.text });
+
+        if (hasSubtasks) {
+            const completedSubCount = task.subtasks.filter(s => s.completed).length;
+            textWrapper.createSpan({
+                cls: 'timebox-subtask-count-badge',
+                text: ` (${completedSubCount}/${task.subtasks.length})`
+            });
+        }
 
         // Action Buttons Group
         const actionsGroup = taskRow.createDiv({ cls: 'timebox-task-actions' });
@@ -294,6 +337,25 @@ export class ProjectDashboardView extends ItemView {
             });
         }
 
+        // Add Subtask Button (Positioned right BEFORE delete button)
+        const addSubtaskIconBtn = actionsGroup.createEl('button', {
+            cls: `timebox-task-icon-btn timebox-add-subtask-btn ${isInputActive ? 'is-active' : ''}`,
+            title: 'Add subtask'
+        });
+        setIcon(addSubtaskIconBtn, 'list-plus');
+        addSubtaskIconBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.expandedSubtasks.add(taskKey);
+            this.expandedSubtasks.delete(`collapsed::${taskKey}`);
+
+            if (this.activeSubtaskInputs.has(taskKey)) {
+                this.activeSubtaskInputs.delete(taskKey);
+            } else {
+                this.activeSubtaskInputs.add(taskKey);
+            }
+            void this.render();
+        });
+
         // Delete Button (🗑️)
         const deleteBtn = actionsGroup.createEl('button', {
             cls: 'timebox-task-icon-btn timebox-delete-btn',
@@ -310,8 +372,11 @@ export class ProjectDashboardView extends ItemView {
 
         // Nested Subtasks Container
         const subtasksContainer = taskBlockEl.createDiv({ cls: 'timebox-subtasks-container' });
+        if (!isSubtasksExpanded && !isInputActive) {
+            subtasksContainer.style.display = 'none';
+        }
 
-        if (task.subtasks && task.subtasks.length > 0) {
+        if (hasSubtasks && isSubtasksExpanded) {
             const subtasksToDisplay = this.plugin.settings.hideCompletedProjectTasks
                 ? task.subtasks.filter(st => !st.completed)
                 : task.subtasks;
@@ -353,31 +418,39 @@ export class ProjectDashboardView extends ItemView {
             }
         }
 
-        // Add Subtask Row
-        const addSubtaskRow = subtasksContainer.createDiv({ cls: 'timebox-quick-add-subtask-row' });
-        const subInput = addSubtaskRow.createEl('input', {
-            type: 'text',
-            placeholder: '+ Subtask...'
-        });
-        const subAddBtn = addSubtaskRow.createEl('button', { text: '+' });
+        // Add Subtask Row (Only rendered/visible when 'Add subtask' button is active)
+        if (isInputActive) {
+            const addSubtaskRow = subtasksContainer.createDiv({ cls: 'timebox-quick-add-subtask-row' });
+            const subInput = addSubtaskRow.createEl('input', {
+                type: 'text',
+                placeholder: '+ Add subtask...'
+            });
+            const subAddBtn = addSubtaskRow.createEl('button', { text: 'Add' });
 
-        const handleAddSubtask = async () => {
-            const val = subInput.value.trim();
-            if (val) {
-                await this.projectManager.addSubtaskToProject(proj.file, task.lineIndex, val);
-                subInput.value = '';
-                void this.render();
-            }
-        };
+            setTimeout(() => subInput.focus(), 50);
 
-        subAddBtn.addEventListener('click', () => {
-            void handleAddSubtask();
-        });
-        subInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
+            const handleAddSubtask = async () => {
+                const val = subInput.value.trim();
+                if (val) {
+                    await this.projectManager.addSubtaskToProject(proj.file, task.lineIndex, val);
+                    subInput.value = '';
+                    this.activeSubtaskInputs.delete(taskKey);
+                    void this.render();
+                }
+            };
+
+            subAddBtn.addEventListener('click', () => {
                 void handleAddSubtask();
-            }
-        });
+            });
+            subInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    void handleAddSubtask();
+                } else if (e.key === 'Escape') {
+                    this.activeSubtaskInputs.delete(taskKey);
+                    void this.render();
+                }
+            });
+        }
     }
 
     async promptCreateProject(): Promise<void> {
