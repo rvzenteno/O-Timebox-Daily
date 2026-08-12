@@ -1,5 +1,13 @@
 # Changelog - TimeBox Daily
 
+## [1.3.3] - 2026-08-12
+
+### Fixed & Compliant
+- 🛡 **Obsidian Community Plugin Guidelines & Linter Compliance**: Resolved all review linter items, eliminated direct `.style` assignments with `.setCssStyles()`, removed un-prefixed timers with `window.setTimeout()`/`window.clearTimeout()`, and removed vault-wide file enumeration (`vault.getFiles()`) in favor of scoped folder queries.
+- 📦 **Clean Tag & Asset Releases**: Official GitHub Release matching exact version string `1.3.3` with attached production assets (`main.js`, `manifest.json`, `styles.css`).
+
+---
+
 ## [1.3.2] - 2026-08-12
 
 ### Added & Improved

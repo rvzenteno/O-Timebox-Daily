@@ -1,7 +1,7 @@
 {
   "id": "timebox-daily",
   "name": "Timebox daily",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "minAppVersion": "1.7.0",
   "description": "Smart daily timeboxing with multi-project tracking, sidebar dashboard, auto task rollover, and bi-directional task sync.",
   "author": "Victor Zenteno",
