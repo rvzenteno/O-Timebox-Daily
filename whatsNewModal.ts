@@ -27,33 +27,33 @@ export class WhatsNewModal extends Modal {
         const features = [
             {
                 icon: '🗂',
-                title: 'Multi-Project Tracking',
-                desc: 'Manage dedicated project notes inside `TimeBox/Projects/` with progress bars, task counts, and backlogs.'
+                title: 'Collapsible Project Cards',
+                desc: 'Click any project header in the Projects Dashboard side panel to collapse or expand project tasks and focus on one project at a time.'
             },
             {
-                icon: '📊',
-                title: 'Projects Sidebar Dashboard',
-                desc: 'Interactive right-sidebar panel showing visual progress bars and instant task checkboxes across all projects.'
+                icon: '🌿',
+                title: 'Nested Subtasks & Controls',
+                desc: 'Full nested subtask support with expand/collapse chevron toggles, completion count badges (e.g. 1/3), and a quick "+ Add Subtask" button.'
             },
             {
-                icon: '🔄',
-                title: 'Bi-Directional Task Syncing',
-                desc: 'Checking off tasks (`- [x]`) in your daily notes, project notes, or sidebar dashboard automatically updates everywhere.'
+                icon: '🎯',
+                title: '6-Dot Drag & Drop Reordering',
+                desc: 'Reorder tasks in project cards with smooth 6-dot drag handles, or use editor keyboard shortcuts ("Move task line up / down").'
             },
             {
-                icon: '🔗',
-                title: 'Automatic [[Project]] Link Parsing',
-                desc: 'Type `- [ ] Task [[ProjectName]]` in any daily note to automatically link and track tasks under that project.'
+                icon: '📦',
+                title: 'Collapsible Project Task Callouts',
+                desc: 'Carried-forward tasks linked to projects are automatically grouped into native collapsible callouts (> [!todo]-), closed by default to avoid clutter.'
             },
             {
-                icon: '👁️',
-                title: 'Hide/Show Completed Tasks',
-                desc: 'Toggle finished tasks on or off with a single click (`👁`) in your dashboard header or settings.'
+                icon: '🧹',
+                title: 'Note Task Cleaner Command',
+                desc: 'Right-click inside any daily note or use the Command Palette ("Group active note tasks into collapsible project callouts") to clean up stray text and group project tasks.'
             },
             {
-                icon: '🚀',
-                title: 'Auto-Open on Startup',
-                desc: 'Automatically open today\'s TimeBox note and Projects Dashboard whenever Obsidian launches.'
+                icon: '◀▶',
+                title: 'Navigation Link Fix',
+                desc: 'Clicking "◀ Yesterday | Tomorrow ▶" links at the top of any daily note now opens or initializes yesterday\'s or tomorrow\'s note instantly.'
             }
         ];
 
