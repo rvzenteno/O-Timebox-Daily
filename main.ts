@@ -149,42 +149,8 @@ export default class TimeBoxPlugin extends Plugin {
         this.addCommand({
             id: 'group-tasks-by-project',
             name: 'Group active note tasks into collapsible project callouts',
-            editorCallback: async (editor: Editor) => {
-                const content = editor.getValue();
-                const lines = content.split('\n');
-                const tasksToGroup: string[] = [];
-                let hasHeader = false;
-                let headerEndIndex = -1;
-
-                for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i];
-                    const trimmed = line.trim();
-                    if (trimmed.startsWith('# Timebox')) {
-                        hasHeader = true;
-                        headerEndIndex = i;
-                    }
-                    if (trimmed.startsWith('- [ ]') || trimmed.startsWith('> - [ ]')) {
-                        tasksToGroup.push(trimmed.replace(/^>\s*/, ''));
-                    }
-                }
-
-                if (tasksToGroup.length === 0) {
-                    new Notice('No unchecked tasks found to group');
-                    return;
-                }
-
-                // Filter out original flat tasks from file lines
-                const cleanedLines = lines.filter(l => !l.trim().startsWith('- [ ]') && !l.trim().startsWith('> - [ ]') && !l.toLowerCase().includes('carried forward') && !l.toLowerCase().includes('incomplete tasks'));
-                const calloutBlock = this.buildGroupedCarriedForwardCallout(tasksToGroup, []);
-
-                if (hasHeader && headerEndIndex !== -1) {
-                    cleanedLines.splice(headerEndIndex + 1, 0, '', calloutBlock, '---');
-                    editor.setValue(cleanedLines.join('\n'));
-                } else {
-                    editor.setValue(calloutBlock + '\n---\n\n' + cleanedLines.join('\n'));
-                }
-
-                new Notice('Grouped tasks into collapsible project callouts');
+            editorCallback: (editor: Editor) => {
+                this.cleanAndGroupNoteContent(editor);
             }
         });
 
@@ -195,40 +161,7 @@ export default class TimeBoxPlugin extends Plugin {
                     item.setTitle('Group tasks into collapsible project callouts')
                         .setIcon('folder-kanban')
                         .onClick(() => {
-                            const content = editor.getValue();
-                            const lines = content.split('\n');
-                            const tasksToGroup: string[] = [];
-                            let hasHeader = false;
-                            let headerEndIndex = -1;
-
-                            for (let i = 0; i < lines.length; i++) {
-                                const line = lines[i];
-                                const trimmed = line.trim();
-                                if (trimmed.startsWith('# Timebox')) {
-                                    hasHeader = true;
-                                    headerEndIndex = i;
-                                }
-                                if (trimmed.startsWith('- [ ]') || trimmed.startsWith('> - [ ]')) {
-                                    tasksToGroup.push(trimmed.replace(/^>\s*/, ''));
-                                }
-                            }
-
-                            if (tasksToGroup.length === 0) {
-                                new Notice('No unchecked tasks found to group');
-                                return;
-                            }
-
-                            const cleanedLines = lines.filter(l => !l.trim().startsWith('- [ ]') && !l.trim().startsWith('> - [ ]') && !l.toLowerCase().includes('carried forward') && !l.toLowerCase().includes('incomplete tasks'));
-                            const calloutBlock = this.buildGroupedCarriedForwardCallout(tasksToGroup, []);
-
-                            if (hasHeader && headerEndIndex !== -1) {
-                                cleanedLines.splice(headerEndIndex + 1, 0, '', calloutBlock, '---');
-                                editor.setValue(cleanedLines.join('\n'));
-                            } else {
-                                editor.setValue(calloutBlock + '\n---\n\n' + cleanedLines.join('\n'));
-                            }
-
-                            new Notice('Grouped tasks into collapsible project callouts');
+                            this.cleanAndGroupNoteContent(editor);
                         });
                 });
             })
@@ -666,7 +599,7 @@ export default class TimeBoxPlugin extends Plugin {
         if (projectGroups.size > 0) {
             result += '> [!todo]- 🌐 Carried Project Tasks (Click to expand)\n';
             for (const [projName, tasks] of projectGroups.entries()) {
-                result += `> > [!project]- ${projName}\n`;
+                result += `> > [!todo]- 📁 ${projName}\n`;
                 for (const task of tasks) {
                     const cleanedTask = task.startsWith('-') ? task : `- ${task}`;
                     result += `> > ${cleanedTask}\n`;
@@ -695,6 +628,115 @@ export default class TimeBoxPlugin extends Plugin {
         }
 
         return result;
+    }
+
+    cleanAndGroupNoteContent(editor: Editor): void {
+        const content = editor.getValue();
+        const lines = content.split('\n');
+
+        const projectMap: Map<string, Set<string>> = new Map();
+        const generalTasksSet: Set<string> = new Set();
+        const otherLines: string[] = [];
+
+        let inCarriedBlock = false;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmed = line.trim();
+
+            if (trimmed.includes('Carried forward') || trimmed.includes('Carried Project Tasks')) {
+                inCarriedBlock = true;
+                continue;
+            }
+
+            if (inCarriedBlock && (trimmed.startsWith('#') || trimmed.startsWith('---'))) {
+                inCarriedBlock = false;
+            }
+
+            // Remove broken unrendered callout lines
+            if (trimmed.includes('[!project]') || trimmed.includes('[!note]') || trimmed.includes('Incomplete General Tasks')) {
+                continue;
+            }
+
+            // Process unchecked tasks
+            if (trimmed.startsWith('- [ ]') || trimmed.startsWith('> - [ ]')) {
+                const rawTask = trimmed.replace(/^>\s*/, '').trim();
+                // Skip empty checkbox lines
+                if (rawTask === '- [ ]' || rawTask === '- [ ] ' || rawTask.length <= 5) {
+                    continue;
+                }
+
+                const linkMatch = rawTask.match(/\[\[([^\]]+)\]\]/);
+                if (linkMatch && linkMatch[1]) {
+                    const fullLink = linkMatch[1];
+                    const projName = fullLink.split('|')[0].replace(/^.*[\\/]/, '').replace(/\.md$/, '').trim();
+                    if (!projectMap.has(projName)) {
+                        projectMap.set(projName, new Set());
+                    }
+                    projectMap.get(projName)!.add(rawTask);
+                } else {
+                    generalTasksSet.add(rawTask);
+                }
+                continue;
+            }
+
+            if (!inCarriedBlock) {
+                otherLines.push(line);
+            }
+        }
+
+        // Build Carried / Grouped Section
+        let carriedBlock = '';
+        if (projectMap.size > 0 || generalTasksSet.size > 0) {
+            carriedBlock += '## 📤 Carried forward from yesterday\n\n';
+
+            if (projectMap.size > 0) {
+                carriedBlock += '> [!todo]- 🌐 Carried Project Tasks (Click to expand)\n';
+                for (const [projName, tasks] of projectMap.entries()) {
+                    carriedBlock += `> > [!todo]- 📁 ${projName}\n`;
+                    for (const task of tasks) {
+                        const cleanedTask = task.startsWith('-') ? task : `- ${task}`;
+                        carriedBlock += `> > ${cleanedTask}\n`;
+                    }
+                    carriedBlock += `> \n`;
+                }
+                carriedBlock += '\n';
+            }
+
+            if (generalTasksSet.size > 0) {
+                carriedBlock += '### Incomplete General Tasks\n';
+                for (const task of generalTasksSet) {
+                    const cleanedTask = task.startsWith('-') ? task : `- ${task}`;
+                    carriedBlock += `${cleanedTask}\n`;
+                }
+                carriedBlock += '\n';
+            }
+
+            carriedBlock += '---\n\n';
+        }
+
+        // Re-assemble document
+        let titleLine = '';
+        let navLine = '';
+        const restLines: string[] = [];
+
+        for (const l of otherLines) {
+            if (l.startsWith('# Timebox') && !titleLine) {
+                titleLine = l;
+            } else if ((l.includes('Yesterday') || l.includes('Tomorrow')) && !navLine) {
+                navLine = l;
+            } else {
+                restLines.push(l);
+            }
+        }
+
+        let finalDoc = titleLine ? `${titleLine}\n\n` : '';
+        if (navLine) finalDoc += `${navLine}\n\n`;
+        if (carriedBlock) finalDoc += carriedBlock;
+        finalDoc += restLines.join('\n').replace(/^\n+/, '');
+
+        editor.setValue(finalDoc);
+        new Notice('Cleaned & grouped note tasks into collapsible project callouts!');
     }
 
     insertUnderHeading(content: string, headingKeywords: string[], items: string[]): string {
