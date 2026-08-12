@@ -150,7 +150,7 @@ export default class TimeBoxPlugin extends Plugin {
             id: 'group-tasks-by-project',
             name: 'Group active note tasks into collapsible project callouts',
             editorCallback: (editor: Editor) => {
-                this.cleanAndGroupNoteContent(editor);
+                void this.cleanAndGroupNoteContent(editor);
             }
         });
 
@@ -161,7 +161,7 @@ export default class TimeBoxPlugin extends Plugin {
                     item.setTitle('Group tasks into collapsible project callouts')
                         .setIcon('folder-kanban')
                         .onClick(() => {
-                            this.cleanAndGroupNoteContent(editor);
+                            void this.cleanAndGroupNoteContent(editor);
                         });
                 });
             })
@@ -630,62 +630,111 @@ export default class TimeBoxPlugin extends Plugin {
         return result;
     }
 
-    cleanAndGroupNoteContent(editor: Editor): void {
+    async cleanAndGroupNoteContent(editor: Editor): Promise<void> {
         const content = editor.getValue();
         const lines = content.split('\n');
 
+        // Fetch project list from projectManager to match project names in plain text tasks
+        const projectFiles = this.projectManager.getProjectFiles(this.settings.projectsFolder);
+        const projectNames = projectFiles.map(f => f.basename);
+
         const projectMap: Map<string, Set<string>> = new Map();
         const generalTasksSet: Set<string> = new Set();
-        const otherLines: string[] = [];
+        const preservedLines: string[] = [];
 
-        let inCarriedBlock = false;
+        let inCarriedSection = false;
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
             const trimmed = line.trim();
 
-            if (trimmed.includes('Carried forward') || trimmed.includes('Carried Project Tasks')) {
-                inCarriedBlock = true;
+            if (
+                trimmed.includes('Carried forward from yesterday') ||
+                trimmed.includes('Carried Project Tasks') ||
+                trimmed.includes('Incomplete General Tasks')
+            ) {
+                inCarriedSection = true;
                 continue;
             }
 
-            if (inCarriedBlock && (trimmed.startsWith('#') || trimmed.startsWith('---'))) {
-                inCarriedBlock = false;
+            if (
+                inCarriedSection &&
+                (trimmed.startsWith('#') ||
+                    trimmed.startsWith('## 🎯') ||
+                    trimmed.startsWith('## ⏰') ||
+                    trimmed.startsWith('## 📝') ||
+                    trimmed.startsWith('## 🧠') ||
+                    trimmed.startsWith('## 📊'))
+            ) {
+                inCarriedSection = false;
             }
 
-            // Remove broken unrendered callout lines
-            if (trimmed.includes('[!project]') || trimmed.includes('[!note]') || trimmed.includes('Incomplete General Tasks')) {
+            // Skip unrendered callout headers, stray quote bars (> or |), and extra horizontal rules inside carried section
+            if (
+                trimmed.startsWith('[!') ||
+                trimmed.startsWith('> [!') ||
+                trimmed === '|' ||
+                trimmed === '>' ||
+                (inCarriedSection && trimmed === '---')
+            ) {
                 continue;
             }
 
-            // Process unchecked tasks
-            if (trimmed.startsWith('- [ ]') || trimmed.startsWith('> - [ ]')) {
-                const rawTask = trimmed.replace(/^>\s*/, '').trim();
-                // Skip empty checkbox lines
-                if (rawTask === '- [ ]' || rawTask === '- [ ] ' || rawTask.length <= 5) {
+            // Strip leading blockquote bars (> or |)
+            const cleanLineText = trimmed.replace(/^[>|\s]+/, '').trim();
+
+            // Handle unchecked tasks
+            if (cleanLineText.startsWith('- [ ]')) {
+                const taskText = cleanLineText.substring(5).trim();
+                // Skip empty checklist lines
+                if (!taskText || taskText.length < 2) {
                     continue;
                 }
 
-                const linkMatch = rawTask.match(/\[\[([^\]]+)\]\]/);
-                if (linkMatch && linkMatch[1]) {
-                    const fullLink = linkMatch[1];
-                    const projName = fullLink.split('|')[0].replace(/^.*[\\/]/, '').replace(/\.md$/, '').trim();
-                    if (!projectMap.has(projName)) {
-                        projectMap.set(projName, new Set());
+                // 1. Wikilink match
+                let matchedProject: string | null = null;
+                const wikiMatch = cleanLineText.match(/\[\[([^\]]+)\]\]/);
+                if (wikiMatch && wikiMatch[1]) {
+                    const target = wikiMatch[1].split('|')[0].trim();
+                    const baseName = target.replace(/^.*[\\/]/, '').replace(/\.md$/, '').trim();
+                    if (baseName) {
+                        matchedProject = baseName;
                     }
-                    projectMap.get(projName)!.add(rawTask);
+                }
+
+                // 2. Project name text match fallback
+                if (!matchedProject) {
+                    for (const projName of projectNames) {
+                        if (cleanLineText.toLowerCase().includes(projName.toLowerCase())) {
+                            matchedProject = projName;
+                            break;
+                        }
+                    }
+                }
+
+                // Format task line with wikilink tag if matched
+                let formattedTask = cleanLineText;
+                if (matchedProject) {
+                    if (!formattedTask.includes(`[[${matchedProject}]]`) && !formattedTask.includes(`[[`)) {
+                        formattedTask = `${cleanLineText} [[${matchedProject}]]`;
+                    }
+                    if (!projectMap.has(matchedProject)) {
+                        projectMap.set(matchedProject, new Set());
+                    }
+                    projectMap.get(matchedProject)!.add(formattedTask);
                 } else {
-                    generalTasksSet.add(rawTask);
+                    generalTasksSet.add(formattedTask);
                 }
                 continue;
             }
 
-            if (!inCarriedBlock) {
-                otherLines.push(line);
+            // Preserve normal lines outside carried section
+            if (!inCarriedSection) {
+                preservedLines.push(line);
             }
         }
 
-        // Build Carried / Grouped Section
+        // Build Carried / Project Section
         let carriedBlock = '';
         if (projectMap.size > 0 || generalTasksSet.size > 0) {
             carriedBlock += '## 📤 Carried forward from yesterday\n\n';
@@ -715,25 +764,28 @@ export default class TimeBoxPlugin extends Plugin {
             carriedBlock += '---\n\n';
         }
 
-        // Re-assemble document
+        // Re-assemble document cleanly
         let titleLine = '';
         let navLine = '';
-        const restLines: string[] = [];
+        const bodyLines: string[] = [];
 
-        for (const l of otherLines) {
-            if (l.startsWith('# Timebox') && !titleLine) {
+        for (const l of preservedLines) {
+            const tr = l.trim();
+            if (tr.startsWith('# Timebox') && !titleLine) {
                 titleLine = l;
-            } else if ((l.includes('Yesterday') || l.includes('Tomorrow')) && !navLine) {
+            } else if ((tr.includes('Yesterday') || tr.includes('Tomorrow')) && !navLine) {
                 navLine = l;
+            } else if (tr === '---' && bodyLines.length > 0 && bodyLines[bodyLines.length - 1] === '---') {
+                continue;
             } else {
-                restLines.push(l);
+                bodyLines.push(l);
             }
         }
 
         let finalDoc = titleLine ? `${titleLine}\n\n` : '';
         if (navLine) finalDoc += `${navLine}\n\n`;
         if (carriedBlock) finalDoc += carriedBlock;
-        finalDoc += restLines.join('\n').replace(/^\n+/, '');
+        finalDoc += bodyLines.join('\n').replace(/^\n+/, '');
 
         editor.setValue(finalDoc);
         new Notice('Cleaned & grouped note tasks into collapsible project callouts!');
