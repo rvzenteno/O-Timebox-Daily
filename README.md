@@ -11,13 +11,19 @@ TimeBox Daily creates a consistent daily planning system inside your vault using
 
 TimeBox Daily helps you:
 
-- **Multi-Project Tracking & Sidebar Dashboard**: Track projects with visual progress bars and backlogs inside dedicated project notes (`TimeBox/Projects/`) and a custom sidebar view.
-- **Bi-Directional Task Sync**: Automatically sync task completion status (`- [x]`) between Daily Notes, Project Notes, and the Projects Dashboard.
+- **Multi-Project Tracking & Sidebar Dashboard**: Track projects with visual progress bars and backlogs inside dedicated project notes (`TimeBox/Projects/`) and a custom right-sidebar dashboard view.
+- **🗂 Collapsible Project Dashboard Cards**: Click project card headers in the sidebar dashboard to collapse or expand project tasks and focus on one project at a time.
+- **🌿 Nested Subtasks & Controls**: Full checklist subtask support with expand/collapse chevron toggles, completion count badges (e.g., `1/3`), and a quick `+ Add Subtask` button.
+- **🎯 6-Dot Drag-and-Drop Task Reordering**: Reorder tasks inside project cards using smooth 6-dot drag handles (`⋮⋮`), or use editor keyboard shortcuts (`Move task line up / down`).
+- **📦 Collapsible Project Task Callouts (`> [!todo]-`)**: Carried-forward tasks and daily tasks linked to projects are automatically grouped into native collapsible callouts, closed by default to eliminate clutter.
+- **🧹 Note Task Cleaner Command & Menu**: Editor right-click menu and command (`Group active note tasks into collapsible project callouts`) to instantly structure daily notes and group stray tasks into project callouts.
+- **🔄 Bi-Directional Task Sync**: Automatically sync task completion status (`- [x]`) between Daily Notes, Project Notes, and the Projects Dashboard.
 - **One-Click Task Injection (`[+ Today]`)**: Push project backlog tasks into today's TimeBox note with a single click.
 - **Automatic `[[Project]]` Link Parsing**: Type `- [ ] Task [[ProjectName]]` in daily notes to auto-link and update project notes.
 - **Hide/Show Completed Tasks (`👁`)**: Toggle finished tasks on or off in your sidebar project cards.
 - **Smart Task Rollover**: Automatically carry forward unfinished tasks and Brain Dump items across days.
 - **Structured Daily Notes**: Auto-create daily timeboxing templates with focus areas, time blocks, and notes.
+- **◀▶ Navigation Links**: Click `◀ Yesterday | Tomorrow ▶` links at the top of any daily note to open or initialize yesterday's or tomorrow's note.
 - **Auto-Open on Startup**: Automatically open today's TimeBox and Projects Dashboard when Obsidian launches.
 
 It is designed for users who want structure without friction.
