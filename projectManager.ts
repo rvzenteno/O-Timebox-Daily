@@ -503,8 +503,19 @@ created: ${getMoment().format('YYYY-MM-DD')}
         if (isDailyNote) {
             targetFiles.push(...this.getProjectFiles(projectsFolder));
         } else if (isProjectFile) {
-            const vaultFiles = this.app.vault.getFiles();
-            targetFiles.push(...vaultFiles.filter(f => f.path.startsWith(timeBoxFolder) && f.extension === 'md'));
+            const timeFolder = this.app.vault.getFolderByPath(timeBoxFolder);
+            if (timeFolder instanceof TFolder) {
+                const collectTimeboxFiles = (targetFolder: TFolder) => {
+                    for (const child of targetFolder.children) {
+                        if (child instanceof TFile && child.extension === 'md') {
+                            targetFiles.push(child);
+                        } else if (child instanceof TFolder) {
+                            collectTimeboxFiles(child);
+                        }
+                    }
+                };
+                collectTimeboxFiles(timeFolder);
+            }
         }
 
         for (const targetFile of targetFiles) {

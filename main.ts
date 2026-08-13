@@ -1185,9 +1185,8 @@ class FileSuggest extends AbstractInputSuggest<TFile> {
 
     getSuggestions(inputStr: string): TFile[] {
         const lowerCaseInputStr = inputStr.toLowerCase();
-        const files = this.app.vault.getFiles();
+        const files = this.app.vault.getMarkdownFiles();
         return files.filter(file => 
-            file.extension === 'md' && 
             file.path.toLowerCase().includes(lowerCaseInputStr)
         );
     }
