@@ -441,9 +441,20 @@ export class SchedulingEngine {
                     task.actualWorkHours = task.workHours;
                 }
                 if (task.actualDuration === undefined) {
-                    task.actualDuration = calendar.calculateWorkingDays(task.forecastStart, task.forecastFinish);
+                    task.actualDuration = task.isMilestone ? 0 : calendar.calculateWorkingDays(task.forecastStart, task.forecastFinish);
                     task.actualDurationDays = task.actualDuration;
                 }
+                // Actual cost computation based on actual work hours
+                let actCost = 0;
+                const unitsSum = task.assignments.length > 0 
+                    ? task.assignments.reduce((sum, a) => sum + a.units, 0)
+                    : 1.0;
+                for (const a of task.assignments) {
+                    const res = project.resources.find(r => r.id === a.resourceId || r.name === a.resourceId);
+                    const rate = res?.ratePerHour || 0;
+                    actCost += (task.actualWorkHours || 0) * (a.units / (unitsSum || 1.0)) * rate;
+                }
+                task.actualCost = Math.round(actCost);
                 continue;
             }
 
@@ -460,7 +471,7 @@ export class SchedulingEngine {
                 }
                 progress = Math.min(99, Math.max(1, progress));
                 const doneFraction = progress / 100;
-                const remDays = Math.max(1, Math.ceil(task.durationDays * (1 - doneFraction)));
+                const remDays = task.isMilestone ? 0 : Math.max(1, Math.ceil(task.durationDays * (1 - doneFraction)));
                 task.remainingDurationDays = remDays;
                 
                 if (task.actualWorkHours !== undefined) {
@@ -481,6 +492,18 @@ export class SchedulingEngine {
                 } else {
                     task.forecastFinish = task.durationDays > 0 ? calendar.addWorkingDays(task.forecastStart, task.durationDays) : task.forecastStart;
                 }
+
+                // Actual cost computation based on actual work hours
+                let actCost = 0;
+                const unitsSum = task.assignments.length > 0 
+                    ? task.assignments.reduce((sum, a) => sum + a.units, 0)
+                    : 1.0;
+                for (const a of task.assignments) {
+                    const res = project.resources.find(r => r.id === a.resourceId || r.name === a.resourceId);
+                    const rate = res?.ratePerHour || 0;
+                    actCost += (task.actualWorkHours || 0) * (a.units / (unitsSum || 1.0)) * rate;
+                }
+                task.actualCost = Math.round(actCost);
                 continue;
             }
 
@@ -495,6 +518,7 @@ export class SchedulingEngine {
                 task.actualDuration = 0;
                 task.actualDurationDays = 0;
             }
+            task.actualCost = 0;
 
             let candidateForecastStart = task.plannedStart || task.calculatedStart;
 
@@ -560,6 +584,7 @@ export class SchedulingEngine {
             let maxFFinish: string | null = null;
             let remWork = 0;
             let actWork = 0;
+            let actCost = 0;
 
             for (const child of children) {
                 if (child.forecastStart && (!minFStart || child.forecastStart < minFStart)) {
@@ -570,6 +595,7 @@ export class SchedulingEngine {
                 }
                 remWork += child.remainingWorkHours || 0;
                 actWork += child.actualWork || 0;
+                actCost += child.actualCost || 0;
             }
 
             if (minFStart) parent.forecastStart = minFStart;
@@ -580,6 +606,7 @@ export class SchedulingEngine {
             parent.remainingWorkHours = remWork;
             parent.actualWork = actWork;
             parent.actualWorkHours = actWork;
+            parent.actualCost = actCost;
         }
 
         // Calculate projected project finish date

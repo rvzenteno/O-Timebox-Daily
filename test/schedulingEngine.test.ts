@@ -1096,3 +1096,237 @@ title: "Clean Project"
     assert.ok(!serialized.includes('visibleColumns'), 'No UI preferences in markdown');
     assert.ok(!serialized.includes('ALL_TASKSHEET_COLUMNS'), 'No column metadata in markdown');
 });
+
+test('20. Four-State Lifecycle Hardening: 11 Invariant Audit & Verification', () => {
+    const rawMarkdown = `---
+title: "Four-State Lifecycle Invariant Test"
+projectStartDate: "2026-09-01"
+---
+
+# Lifecycle Project
+
+- [ ] Task 1 Initial Phase 🛫 2026-09-01 📅 2026-09-02 ⏳ 2d @alice-eng
+- [ ] Task 2 Intermediate Work dependsOn:: 1 ⏳ 3d @alice-eng
+- [ ] Task 3 Final Delivery dependsOn:: 2 ⏳ 4d @bob-tech
+`;
+    const project = MarkdownAdapter.parseProject('Lifecycle.md', 'Lifecycle', rawMarkdown);
+    project.resources = [
+        { id: 'alice-eng', name: 'Alice Engineer', type: 'Work', maxUnits: 1.0, ratePerHour: 100, workingHoursPerDay: 8 },
+        { id: 'bob-tech', name: 'Bob Technician', type: 'Work', maxUnits: 1.0, ratePerHour: 60, workingHoursPerDay: 8 }
+    ];
+
+    // INITIAL SCHEDULE & BASELINE
+    const planSchedule = SchedulingEngine.schedule(project);
+    const initialT1Start = planSchedule.tasks[0].plannedStart!;
+    const initialT1Finish = planSchedule.tasks[0].plannedFinish!;
+    const initialT2Finish = planSchedule.tasks[1].plannedFinish!;
+
+    // Save Baseline 0
+    SchedulingEngine.saveBaseline(planSchedule, '0', 'Contract Baseline 0');
+    const b0_t1_start = planSchedule.baselines['0'].tasks[planSchedule.tasks[0].id].start;
+    const b0_t1_finish = planSchedule.baselines['0'].tasks[planSchedule.tasks[0].id].finish;
+    const b0_t2_finish = planSchedule.baselines['0'].tasks[planSchedule.tasks[1].id].finish;
+
+    // INVARIANT 1: Baseline data is immutable after creation
+    const b0SnapshotJson = JSON.stringify(planSchedule.baselines['0']);
+
+    // INVARIANT 2: Changing the current plan does not alter any saved baseline
+    planSchedule.tasks[1].durationDays = 6; // expand Task 2 duration
+    const rescheduled = SchedulingEngine.schedule(planSchedule);
+    assert.strictEqual(JSON.stringify(rescheduled.baselines['0']), b0SnapshotJson, 'Invariant 1 & 2: Baseline 0 remains strictly immutable after plan modification');
+    assert.strictEqual(rescheduled.tasks[1].plannedFinish !== initialT2Finish, true, 'Current plan has changed');
+    assert.strictEqual(rescheduled.baselines['0'].tasks[rescheduled.tasks[1].id].finish, b0_t2_finish, 'Baseline 2 finish remains original');
+
+    // INVARIANT 3: Entering actuals does not modify planned dates
+    rescheduled.tasks[0].actualStart = '2026-09-01';
+    rescheduled.tasks[0].actualFinish = '2026-09-02';
+    rescheduled.tasks[0].actualWorkHours = 16;
+    rescheduled.tasks[0].completed = true;
+    rescheduled.tasks[0].percentComplete = 100;
+    const scheduledWithActuals = SchedulingEngine.schedule(rescheduled);
+    assert.strictEqual(scheduledWithActuals.tasks[0].plannedStart, initialT1Start, 'Invariant 3: Entering actuals preserves plannedStart');
+    assert.strictEqual(scheduledWithActuals.tasks[0].plannedFinish, initialT1Finish, 'Invariant 3: Entering actuals preserves plannedFinish');
+
+    // INVARIANT 4: Entering actuals does not modify baseline dates
+    assert.strictEqual(scheduledWithActuals.baselines['0'].tasks[rescheduled.tasks[0].id].start, b0_t1_start, 'Invariant 4: Entering actuals preserves baseline start');
+    assert.strictEqual(scheduledWithActuals.baselines['0'].tasks[rescheduled.tasks[0].id].finish, b0_t1_finish, 'Invariant 4: Entering actuals preserves baseline finish');
+
+    // INVARIANT 5: Forecast calculations do not modify planned dates
+    scheduledWithActuals.statusDate = '2026-09-10';
+    const scheduledForecast = SchedulingEngine.schedule(scheduledWithActuals);
+    assert.strictEqual(scheduledForecast.tasks[0].plannedStart, initialT1Start, 'Invariant 5: Forecast does not modify planned start for task 1');
+    assert.strictEqual(scheduledForecast.tasks[0].plannedFinish, initialT1Finish, 'Invariant 5: Forecast does not modify planned finish for task 1');
+    assert.strictEqual(scheduledForecast.tasks[1].plannedStart, rescheduled.tasks[1].plannedStart, 'Invariant 5: Forecast does not modify planned start for task 2');
+    assert.strictEqual(scheduledForecast.tasks[1].plannedFinish, rescheduled.tasks[1].plannedFinish, 'Invariant 5: Forecast does not modify planned finish for task 2');
+
+    // INVARIANT 6: Forecast calculations do not modify baseline data
+    assert.strictEqual(JSON.stringify(scheduledForecast.baselines['0']), b0SnapshotJson, 'Invariant 6: Forecast calculation preserves Baseline 0 data intact');
+
+    // INVARIANT 7: Changing statusDate does not modify historical actuals
+    scheduledForecast.statusDate = '2026-09-25'; // move status date forward
+    const fwdSchedule = SchedulingEngine.schedule(scheduledForecast);
+    assert.strictEqual(fwdSchedule.tasks[0].actualStart, '2026-09-01', 'Invariant 7: Actual start untouched by status date advance');
+    assert.strictEqual(fwdSchedule.tasks[0].actualFinish, '2026-09-02', 'Invariant 7: Actual finish untouched by status date advance');
+    assert.strictEqual(fwdSchedule.tasks[0].actualWorkHours, 16, 'Invariant 7: Actual work untouched by status date advance');
+
+    fwdSchedule.statusDate = '2026-08-20'; // move status date backward
+    const bwdSchedule = SchedulingEngine.schedule(fwdSchedule);
+    assert.strictEqual(bwdSchedule.tasks[0].actualStart, '2026-09-01', 'Invariant 7: Actual start untouched by status date rewind');
+    assert.strictEqual(bwdSchedule.tasks[0].actualFinish, '2026-09-02', 'Invariant 7: Actual finish untouched by status date rewind');
+
+    // INVARIANT 8: Re-running forecast with identical inputs is deterministic
+    const projCopy1 = MarkdownAdapter.parseProject('Copy1.md', 'Copy1', rawMarkdown);
+    projCopy1.resources = project.resources;
+    projCopy1.statusDate = '2026-09-15';
+    const projCopy2 = MarkdownAdapter.parseProject('Copy2.md', 'Copy2', rawMarkdown);
+    projCopy2.resources = project.resources;
+    projCopy2.statusDate = '2026-09-15';
+
+    const run1 = SchedulingEngine.schedule(projCopy1);
+    const run2 = SchedulingEngine.schedule(projCopy2);
+    assert.strictEqual(
+        JSON.stringify(run1.tasks.map(t => ({ fs: t.forecastStart, ff: t.forecastFinish, ps: t.plannedStart, pf: t.plannedFinish }))),
+        JSON.stringify(run2.tasks.map(t => ({ fs: t.forecastStart, ff: t.forecastFinish, ps: t.plannedStart, pf: t.plannedFinish }))),
+        'Invariant 8: Identical inputs produce strictly deterministic forecast outputs'
+    );
+
+    // INVARIANT 9: Completed tasks remain completed regardless of statusDate changes
+    for (const testDate of ['2026-09-01', '2026-09-10', '2026-10-15', '2027-01-01']) {
+        fwdSchedule.statusDate = testDate;
+        const testSched = SchedulingEngine.schedule(fwdSchedule);
+        assert.strictEqual(testSched.tasks[0].completed, true, `Invariant 9: Task remains completed with statusDate ${testDate}`);
+        assert.strictEqual(testSched.tasks[0].remainingDurationDays, 0, `Invariant 9: Remaining duration is 0 with statusDate ${testDate}`);
+        assert.strictEqual(testSched.tasks[0].remainingWorkHours, 0, `Invariant 9: Remaining work is 0 with statusDate ${testDate}`);
+    }
+
+    // INVARIANT 10: Predecessor forecast changes ripple into successor FORECAST dates, but NOT successor PLANNED dates
+    fwdSchedule.statusDate = '2026-09-15';
+    // Task 2 is in progress, delayed: actualStart 2026-09-03, 20% progress
+    fwdSchedule.tasks[1].actualStart = '2026-09-03';
+    fwdSchedule.tasks[1].percentComplete = 20;
+    fwdSchedule.tasks[1].completed = false;
+    const rippleSchedule = SchedulingEngine.schedule(fwdSchedule);
+    const t2_planned_finish = rippleSchedule.tasks[1].plannedFinish!;
+    const t2_forecast_finish = rippleSchedule.tasks[1].forecastFinish!;
+    const t3_planned_start = rippleSchedule.tasks[2].plannedStart!;
+    const t3_forecast_start = rippleSchedule.tasks[2].forecastStart!;
+
+    assert.ok(t2_forecast_finish > t2_planned_finish, 'Predecessor forecast finish slips past planned finish');
+    assert.ok(t3_forecast_start > t3_planned_start, 'Successor forecast start ripples forward following predecessor forecast');
+    assert.strictEqual(rippleSchedule.tasks[2].plannedStart, t3_planned_start, 'Invariant 10: Successor PLANNED start remains completely unchanged');
+
+    // INVARIANT 11: Replanning is an explicit user operation, not an implicit consequence of entering actuals or changing statusDate
+    assert.strictEqual(rippleSchedule.tasks[1].durationDays, 6, 'Task duration unchanged implicitly');
+    // Explicit user replan operation:
+    rippleSchedule.tasks[1].durationDays = 8;
+    rippleSchedule.tasks[1].userStart = '2026-09-03';
+    const explicitlyReplanned = SchedulingEngine.schedule(rippleSchedule);
+    assert.strictEqual(explicitlyReplanned.tasks[1].plannedStart, '2026-09-03', 'Invariant 11: Planned start updates only upon explicit replan');
+    assert.strictEqual(explicitlyReplanned.tasks[1].durationDays, 8, 'Invariant 11: Planned duration updates only upon explicit replan');
+});
+
+test('21. Forecast & Variance Semantics: 12 Edge-Case Scenarios & Cost Variance Audit', () => {
+    const rawMarkdown = `---
+title: "Forecast & Variance Audit"
+projectStartDate: "2026-09-01"
+statusDate: "2026-09-15"
+---
+
+- [x] T1 Completed Before Status Date [actualStart:: 2026-09-01] [actualFinish:: 2026-09-04] [actualWork:: 32h] 🛫 2026-09-01 📅 2026-09-07 ⏳ 5d @eng
+- [x] T2 Completed After Status Date [actualStart:: 2026-09-10] [actualFinish:: 2026-09-18] [actualWork:: 56h] 🛫 2026-09-10 📅 2026-09-18 ⏳ 7d @eng
+- [/] T3 In Progress at Status Date [actualStart:: 2026-09-08] [actualWork:: 24h] 🛫 2026-09-08 📅 2026-09-18 ⏳ 9d 50% @eng
+- [ ] T4 Planned Before Status Date Incomplete 🛫 2026-09-07 📅 2026-09-11 ⏳ 5d @eng
+- [ ] T5 Predecessor Dependency on T4 dependsOn:: 4 ⏳ 3d @eng
+- [x] T6 Milestone Zero Duration Completed [actualStart:: 2026-09-05] [actualFinish:: 2026-09-05] 🛫 2026-09-05 📅 2026-09-05 ⏳ 0d #milestone
+- [ ] T7 Milestone Zero Duration Unstarted 🛫 2026-09-22 📅 2026-09-22 ⏳ 0d #milestone
+- [/] T8 In Progress with 0 Remaining Work [actualStart:: 2026-09-08] [actualWork:: 40h] 🛫 2026-09-08 📅 2026-09-14 ⏳ 5d 99% @eng
+- [/] T9 Progress Without Actual Start 🛫 2026-09-10 📅 2026-09-18 ⏳ 7d 50% @eng
+- [/] T10 Actual Start Without Actual Finish [actualStart:: 2026-09-14] 🛫 2026-09-14 📅 2026-09-18 ⏳ 5d @eng
+- [ ] T11 Actual Work Without Actual Start [actualWork:: 16h] 🛫 2026-09-14 📅 2026-09-18 ⏳ 5d @eng
+- [ ] T12 Zero Percent Complete Future 🛫 2026-09-21 📅 2026-09-25 ⏳ 5d @eng
+`;
+    const project = MarkdownAdapter.parseProject('ForecastAudit.md', 'ForecastAudit', rawMarkdown);
+    project.resources = [
+        { id: 'eng', name: 'Engineer', type: 'Work', maxUnits: 1.0, ratePerHour: 100, workingHoursPerDay: 8 }
+    ];
+
+    const scheduled = SchedulingEngine.schedule(project);
+
+    // Scenario 1: Completed before status date
+    const t1 = scheduled.tasks[0];
+    assert.strictEqual(t1.forecastStart, '2026-09-01');
+    assert.strictEqual(t1.forecastFinish, '2026-09-04');
+    assert.strictEqual(t1.remainingDurationDays, 0);
+    assert.strictEqual(t1.remainingWorkHours, 0);
+    assert.strictEqual(t1.actualCost, 3200, 'Actual cost = 32h * $100 = $3200');
+
+    // Scenario 2: Completed after status date
+    const t2 = scheduled.tasks[1];
+    assert.strictEqual(t2.forecastStart, '2026-09-10');
+    assert.strictEqual(t2.forecastFinish, '2026-09-18');
+    assert.strictEqual(t2.remainingDurationDays, 0);
+    assert.strictEqual(t2.remainingWorkHours, 0);
+    assert.strictEqual(t2.actualCost, 5600, 'Actual cost = 56h * $100 = $5600');
+
+    // Scenario 3: In progress at status date
+    const t3 = scheduled.tasks[2];
+    assert.strictEqual(t3.forecastStart, '2026-09-08');
+    assert.ok(t3.forecastFinish! >= '2026-09-15');
+    assert.strictEqual(t3.actualCost, 2400, 'Actual cost = 24h * $100 = $2400');
+    assert.strictEqual(t3.remainingWorkHours, 48, 'Remaining work = 72h - 24h = 48h');
+
+    // Scenario 4: Planned before status date but incomplete
+    const t4 = scheduled.tasks[3];
+    assert.strictEqual(t4.plannedStart, '2026-09-07', 'Planned start preserved');
+    assert.strictEqual(t4.forecastStart, '2026-09-15', 'Forecast slips to status date');
+    assert.strictEqual(t4.remainingDurationDays, 5);
+
+    // Scenario 5: Predecessor forecast ripple
+    const t5 = scheduled.tasks[4];
+    assert.strictEqual(t5.plannedStart, '2026-09-14', 'Successor planned start preserved');
+    assert.ok(t5.forecastStart! > t5.plannedStart!, 'Successor forecast ripples from predecessor');
+
+    // Scenario 6: Completed milestone (0 duration)
+    const t6 = scheduled.tasks[5];
+    assert.strictEqual(t6.forecastStart, '2026-09-05');
+    assert.strictEqual(t6.forecastFinish, '2026-09-05');
+    assert.strictEqual(t6.actualDuration, 0, 'Milestone actual duration is 0');
+    assert.strictEqual(t6.remainingDurationDays, 0);
+
+    // Scenario 7: Unstarted milestone (0 duration)
+    const t7 = scheduled.tasks[6];
+    assert.strictEqual(t7.forecastStart, '2026-09-22');
+    assert.strictEqual(t7.forecastFinish, '2026-09-22');
+    assert.strictEqual(t7.remainingDurationDays, 0);
+
+    // Scenario 8: Task with remaining work = 0
+    const t8 = scheduled.tasks[7];
+    assert.strictEqual(t8.actualWorkHours, 40);
+    assert.strictEqual(t8.remainingWorkHours, 0);
+
+    // Scenario 9: Progress without actualStart
+    const t9 = scheduled.tasks[8];
+    assert.strictEqual(t9.actualStart, undefined, 'No fake actualStart synthesized');
+    assert.strictEqual(t9.forecastStart, '2026-09-10', 'Forecast start defaults to plannedStart');
+
+    // Scenario 10: Actual start without actual finish
+    const t10 = scheduled.tasks[9];
+    assert.strictEqual(t10.actualStart, '2026-09-14');
+    assert.strictEqual(t10.actualFinish, undefined, 'actualFinish remains undefined');
+    assert.strictEqual(t10.forecastStart, '2026-09-14');
+
+    // Scenario 11: Actual work without actual start
+    const t11 = scheduled.tasks[10];
+    assert.strictEqual(t11.actualWorkHours, 16);
+    assert.strictEqual(t11.actualStart, undefined);
+    assert.strictEqual(t11.forecastStart, '2026-09-14');
+
+    // Scenario 12: 0% completion future
+    const t12 = scheduled.tasks[11];
+    assert.strictEqual(t12.percentComplete, 0);
+    assert.strictEqual(t12.forecastStart, '2026-09-21');
+    assert.strictEqual(t12.forecastFinish, '2026-09-25');
+    assert.strictEqual(t12.remainingDurationDays, 5);
+    assert.strictEqual(t12.actualCost, 0);
+});
+

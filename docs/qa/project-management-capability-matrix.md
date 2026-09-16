@@ -119,7 +119,7 @@ To maintain system stability, performance, and user ergonomics, a clear architec
 
 | Feature | Description | Timebox 1.4.0 Status | Technical Implementation & Notes |
 | :--- | :--- | :---: | :--- |
-| **Markdown Persistence** | 100% plain text storage | **Implemented** | All entities serialized to standard Markdown checklists and YAML frontmatter. |
+| **Markdown Persistence** | Pure plain text storage | **Implemented** | All entities serialized to standard Markdown checklists and YAML frontmatter. |
 | **Lossless Round-Trip** | Preserves unrelated note text | **Implemented** | Prose, headers, bullets, callouts, and comments preserved without mutation. |
 | **Obsidian Wikilinks** | Internal link support (`[[Note]]`) | **Implemented** | Preserved verbatim in task descriptions and project documentation. |
 | **Obsidian Tags** | Tag indexing (`#project`, `#milestone`)| **Implemented** | Preserved and integrated into task identification. |

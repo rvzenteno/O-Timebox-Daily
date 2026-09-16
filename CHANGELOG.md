@@ -29,7 +29,7 @@
   - UI column preferences persisted separately in plugin settings, keeping project Markdown files strictly clean of view-level state.
 - 🛡 **Phase 5 — Full Project Controls Lifecycle Verification**:
   - Validated against the 55-task realistic commercial buildout fixture across the complete project lifecycle: `Plan → Baseline → Execute → Enter Actuals → Change Status Date → Forecast → Review Variance → Replan`.
-  - 100% test pass rate across 19 unit & regression tests and 14 end-to-end integration tests.
+  - Validated with 21 unit & regression tests and 14 end-to-end integration tests, all passing without detected defects.
 
 ## [1.4.0] - 2026-09-15
 
