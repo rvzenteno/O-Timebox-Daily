@@ -43,6 +43,7 @@ export class MarkdownAdapter {
             .replace(/\[deadline::\s*[^\]]+\]/gi, '')               // Deadline bracket
             .replace(/\[%::\s*[^\]]+\]/gi, '')                      // Progress bracket
             .replace(/#milestone\b/gi, '')                          // Milestone tag
+            .replace(/<!--[\s\S]*?-->/g, '')                        // HTML comments
             .replace(/^(\s*(?:>\s*)?-\s*\[[ xX]\]\s*)+/g, '')      // second pass on checkboxes
             .replace(/\s+/g, ' ')
             .trim();
@@ -102,7 +103,12 @@ export class MarkdownAdapter {
         const baselines: Record<string, ProjectBaseline> = typeof frontmatter['baselines'] === 'object' && frontmatter['baselines'] !== null
             ? frontmatter['baselines']
             : {};
-        const activeBaselineId = frontmatter['activeBaselineId'] || (baselines['baseline0'] ? 'baseline0' : undefined);
+        for (const [bId, bVal] of Object.entries(baselines)) {
+            if (bVal && typeof bVal === 'object' && !bVal.id) {
+                bVal.id = bId;
+            }
+        }
+        const activeBaselineId = frontmatter['activeBaselineId'] || (baselines['0'] ? '0' : (baselines['baseline0'] ? 'baseline0' : Object.keys(baselines)[0]));
 
         // 2. Parse Task lines (N-Level hierarchy)
         const rawTasks: NormalizedTask[] = [];
@@ -151,7 +157,10 @@ export class MarkdownAdapter {
 
         // 4. Build taskMap and collect all TaskDependencies
         const taskMap = new Map<string, NormalizedTask>();
-        rawTasks.forEach(t => taskMap.set(t.id, t));
+        rawTasks.forEach(t => {
+            taskMap.set(t.id, t);
+            if (t.wbsCode) taskMap.set(t.wbsCode, t);
+        });
 
         const dependencies: TaskDependency[] = [];
         for (const task of rawTasks) {
@@ -210,54 +219,74 @@ export class MarkdownAdapter {
                 const fmLines = fmText.split('\n');
                 bodyStartIndex = fmLines.length + 2; // skip both '---' delimiters
 
-                let currentList: any[] | null = null;
-                let currentItem: any = null;
+                // Stack elements: { indent: number, obj: any, pendingKey?: string }
+                const stack: Array<{ indent: number; obj: any; pendingKey?: string }> = [
+                    { indent: -1, obj: frontmatter }
+                ];
 
                 for (let i = 0; i < fmLines.length; i++) {
                     const fLine = fmLines[i];
                     const trimmed = fLine.trim();
                     if (!trimmed || trimmed.startsWith('#')) continue;
 
-                    // Check if line is indented property under an existing list item
-                    if (currentList && currentItem && /^\s{4,}/.test(fLine)) {
-                        const colonIdx = trimmed.indexOf(':');
-                        if (colonIdx > 0) {
-                            const subKey = trimmed.substring(0, colonIdx).trim();
-                            const subVal = trimmed.substring(colonIdx + 1).trim();
-                            currentItem[subKey] = this.parseScalar(subVal);
+                    const matchIndent = fLine.match(/^(\s*)/);
+                    const indent = matchIndent ? matchIndent[1].length : 0;
+
+                    // Pop stack to current indent level
+                    while (stack.length > 1 && stack[stack.length - 1].indent >= indent) {
+                        stack.pop();
+                    }
+
+                    let current = stack[stack.length - 1];
+
+                    // Check for list item: "- ..."
+                    if (trimmed.startsWith('-')) {
+                        const rest = trimmed.replace(/^-\s*/, '').trim();
+
+                        // Convert pending object into an array if needed
+                        if (!Array.isArray(current.obj)) {
+                            if (current.pendingKey && stack.length > 1) {
+                                const parent = stack[stack.length - 2];
+                                parent.obj[current.pendingKey] = [];
+                                current.obj = parent.obj[current.pendingKey];
+                                current.pendingKey = undefined;
+                            }
+                        }
+
+                        if (Array.isArray(current.obj)) {
+                            const colonIdx = rest.indexOf(':');
+                            if (colonIdx > 0) {
+                                const key = rest.substring(0, colonIdx).trim().replace(/^['"](.*)['"]$/, '$1');
+                                const val = rest.substring(colonIdx + 1).trim();
+                                const itemObj: Record<string, any> = { [key]: this.parseScalar(val) };
+                                current.obj.push(itemObj);
+                                stack.push({ indent, obj: itemObj });
+                            } else {
+                                current.obj.push(this.parseScalar(rest));
+                            }
                         }
                         continue;
                     }
 
-                    // Check if line is a list item: "  - ..."
-                    if (currentList && /^\s*-\s*/.test(fLine)) {
-                        const afterDash = trimmed.replace(/^-\s*/, '').trim();
-                        const colonIdx = afterDash.indexOf(':');
-                        if (colonIdx > 0) {
-                            const subKey = afterDash.substring(0, colonIdx).trim();
-                            const subVal = afterDash.substring(colonIdx + 1).trim();
-                            currentItem = { [subKey]: this.parseScalar(subVal) };
-                            currentList.push(currentItem);
-                        } else {
-                            currentItem = null;
-                            currentList.push(this.parseScalar(afterDash));
-                        }
-                        continue;
-                    }
-
-                    // Top-level key
-                    const colonIdx = fLine.indexOf(':');
+                    // Key-value line
+                    const colonIdx = trimmed.indexOf(':');
                     if (colonIdx > 0) {
-                        const key = fLine.substring(0, colonIdx).trim();
-                        const val = fLine.substring(colonIdx + 1).trim();
+                        const rawKey = trimmed.substring(0, colonIdx).trim();
+                        const key = rawKey.replace(/^['"](.*)['"]$/, '$1');
+                        const val = trimmed.substring(colonIdx + 1).trim();
+
                         if (val === '') {
-                            currentList = [];
-                            currentItem = null;
-                            frontmatter[key] = currentList;
+                            const newObj: Record<string, any> = {};
+                            if (Array.isArray(current.obj)) {
+                                current.obj.push(newObj);
+                            } else {
+                                current.obj[key] = newObj;
+                            }
+                            stack.push({ indent, obj: newObj, pendingKey: key });
                         } else {
-                            currentList = null;
-                            currentItem = null;
-                            frontmatter[key] = this.parseScalar(val);
+                            if (!Array.isArray(current.obj)) {
+                                current.obj[key] = this.parseScalar(val);
+                            }
                         }
                     }
                 }
@@ -487,8 +516,8 @@ export class MarkdownAdapter {
      */
     private static extractDependencies(task: NormalizedTask, allTasks: NormalizedTask[]): TaskDependency[] {
         const raw = task.rawLine || '';
-        const predMatch = raw.match(/dependsOn::\s*#?([0-9a-zA-Z.,_+\-\s#]+)/i) 
-            || raw.match(/after:\s*#?([0-9a-zA-Z.,_+\-\s#]+)/i);
+        const predMatch = raw.match(/dependsOn::\s*([0-9a-zA-Z.,_+\-\s#]+?)(?=(?:\s+[#@\[<🛫📅⏳⏰]|$))/i) 
+            || raw.match(/after:\s*([0-9a-zA-Z.,_+\-\s#]+?)(?=(?:\s+[#@\[<🛫📅⏳⏰]|$))/i);
 
         if (!predMatch || !predMatch[1]) return [];
 

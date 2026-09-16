@@ -263,7 +263,7 @@ export class ProjectValidator {
      */
     private static validateResourceAssignments(project: NormalizedProject, issues: ValidationIssue[]): void {
         for (const task of project.tasks) {
-            for (const assign of task.assignments) {
+            for (const assign of (task.assignments || [])) {
                 if (assign.units <= 0 || assign.units > 5.0) {
                     issues.push({
                         severity: 'warning',

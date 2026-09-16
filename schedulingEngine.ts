@@ -172,7 +172,7 @@ export class SchedulingEngine {
                 maxTerminalFinish = task.calculatedFinish;
             }
         }
-        project.projectFinishDate = project.projectDeadline && project.projectDeadline > maxTerminalFinish
+        project.projectFinishDate = project.schedulingDirection === 'backward' && project.projectDeadline
             ? project.projectDeadline
             : maxTerminalFinish;
 

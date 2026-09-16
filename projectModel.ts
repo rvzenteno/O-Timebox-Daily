@@ -56,7 +56,9 @@ export interface TaskBaseline {
     start: string;
     finish: string;
     duration: number;
+    durationDays?: number;
     work: number;
+    workHours?: number;
     cost: number;
 }
 

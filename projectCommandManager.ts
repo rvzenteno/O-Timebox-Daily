@@ -139,10 +139,30 @@ export class ResizeTaskDurationCommand implements ProjectCommand {
  */
 export class AddDependencyCommand implements ProjectCommand {
     id = 'add-dependency';
+    public dependency: TaskDependency;
+    public description: string;
+
     constructor(
-        public dependency: TaskDependency,
-        public description: string = `Add dependency ${dependency.fromTaskId} -> ${dependency.toTaskId}`
-    ) {}
+        depOrFrom: TaskDependency | string,
+        toTaskId?: string,
+        type: 'FS' | 'SS' | 'FF' | 'SF' = 'FS',
+        lag: number = 0,
+        description?: string
+    ) {
+        if (typeof depOrFrom === 'object') {
+            this.dependency = depOrFrom;
+            this.description = description || `Add dependency ${this.dependency.fromTaskId} -> ${this.dependency.toTaskId}`;
+        } else {
+            this.dependency = {
+                id: `dep-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+                fromTaskId: depOrFrom,
+                toTaskId: toTaskId || '',
+                type: type,
+                lag: lag || 0
+            };
+            this.description = description || `Add dependency ${depOrFrom} -> ${toTaskId}`;
+        }
+    }
 
     execute(project: NormalizedProject): NormalizedProject {
         const exists = project.dependencies.some(

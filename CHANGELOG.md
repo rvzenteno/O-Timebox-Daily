@@ -39,9 +39,11 @@
   - Collapsible validation alert banner surfacing actionable issues in the UI.
 - ⏪ **Universal Undo / Redo Command Stack**:
   - Designed into the command layer (`Ctrl+Z` / `Ctrl+Y`, toolbar buttons) for moving tasks, duration resizing, dependency modifications, indentation changes, and baseline snapshots.
-- 🚀 **Expanded 14-Scenario Integration & Benchmark Test Suite**:
-  - Benchmarked to schedule 1,000 tasks and analyze 20 resource allocations in ~13ms (< 250ms threshold).
-  - 14 automated Node.js unit tests covering Kahn cycle detection, 20-task multi-level WBS scheduling, calendar stepping, resource CRUD, non-8h calculations, time-phased matrices, presentation isolation, duplicate checkbox prevention, and lossless round-tripping.
+- 🚀 **Production Hardening & 27-Scenario Acceptance Suite**:
+  - Validated against a 55-task real-world municipal infrastructure project (`docs/qa/realistic-commercial-buildout.md`) with 5 WBS levels, all 4 dependency types, part-time 4h technician capacity, holidays, and Baseline 0.
+  - Closed-loop round-trip verified: `Markdown ➔ Model ➔ Schedule ➔ Resource Calc ➔ Edit ➔ Markdown ➔ Reload ➔ Model`.
+  - Microsoft Project / ProjectLibre capability audit and parity matrix published (`docs/qa/project-management-capability-matrix.md`).
+  - Mobile responsive optimization with touch-scrolling containers, stacked KPI cards, and responsive modal dialogs.
 
 ---
 

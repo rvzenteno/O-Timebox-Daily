@@ -2232,8 +2232,50 @@ body.is-resizing-gantt-splitter {
     height: 3px;
 }
 
+/* ==========================================================================
+   Mobile & Responsive Viewport Optimizations (<= 768px)
+   ========================================================================== */
+@media (max-width: 768px) {
+    .timebox-gantt-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: 10px;
+    }
 
+    .timebox-gantt-toolbar-left,
+    .timebox-gantt-toolbar-center,
+    .timebox-gantt-toolbar-right {
+        justify-content: space-between;
+        flex-wrap: wrap;
+        width: 100%;
+    }
 
+    .timebox-gantt-project-select {
+        max-width: 100%;
+        flex: 1;
+    }
 
+    .timebox-summary-kpi-grid {
+        grid-template-columns: 1fr;
+    }
 
+    .timebox-resource-table-container,
+    .timebox-resource-usage-container,
+    .timebox-gantt-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
 
+    .timebox-gantt-btn {
+        min-height: 36px;
+        padding: 6px 10px;
+        font-size: 13px;
+    }
+
+    .modal.mod-timebox {
+        width: 95vw;
+        max-width: 95vw;
+        padding: 16px;
+    }
+}
