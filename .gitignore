@@ -129,6 +129,7 @@ public
 # Build output
 main.js
 *.js.map
+test/dist.test.mjs
 
 # IDE
 .idea/

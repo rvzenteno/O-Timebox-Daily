@@ -668,6 +668,1421 @@ a.timebox-github-btn {
     font-weight: normal;
 }
 
+/* ==========================================================================
+   TimeBox Gantt Timeline View (Microsoft Project Style)
+   ========================================================================== */
+
+.timebox-gantt-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    font-family: var(--font-text);
+    background-color: var(--background-primary);
+}
+
+/* Toolbar */
+.timebox-gantt-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 14px;
+    background-color: var(--background-secondary);
+    border-bottom: 1px solid var(--background-modifier-border);
+    min-height: 48px;
+}
+
+.timebox-gantt-toolbar-left,
+.timebox-gantt-toolbar-center,
+.timebox-gantt-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.timebox-gantt-label {
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.timebox-gantt-project-select {
+    font-size: 0.85em;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--background-modifier-border);
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    max-width: 220px;
+}
+
+.timebox-gantt-start-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.timebox-gantt-start-select {
+    font-size: 0.82em;
+    padding: 3px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--background-modifier-border);
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+}
+
+.timebox-gantt-button-group {
+    display: inline-flex;
+    border-radius: 4px;
+    border: 1px solid var(--background-modifier-border);
+    overflow: hidden;
+    background-color: var(--background-primary);
+}
+
+.timebox-gantt-zoom-btn {
+    border: none;
+    background: transparent;
+    padding: 3px 10px;
+    font-size: 0.8em;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.timebox-gantt-zoom-btn:hover {
+    color: var(--text-normal);
+    background-color: var(--background-modifier-hover);
+}
+
+.timebox-gantt-zoom-btn.is-active {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    font-weight: 600;
+}
+
+.timebox-gantt-today-btn {
+    border: 1px solid var(--background-modifier-border);
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    border-radius: 4px;
+    padding: 3px 10px;
+    font-size: 0.8em;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.timebox-gantt-today-btn:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--interactive-accent);
+}
+
+.timebox-gantt-action-btn {
+    border: none;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 0.82em;
+    font-weight: 500;
+    cursor: pointer;
+    transition: filter 0.15s ease;
+}
+
+.timebox-gantt-action-btn:hover {
+    filter: brightness(1.1);
+}
+
+/* Workspace Splitter Layout */
+.timebox-gantt-workspace {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Left WBS Task Table */
+.timebox-gantt-wbs-pane {
+    display: flex;
+    flex-direction: column;
+    min-width: 180px;
+    max-width: 600px;
+    border-right: 1px solid var(--background-modifier-border);
+    background-color: var(--background-primary);
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.timebox-gantt-wbs-header {
+    display: flex;
+    align-items: center;
+    height: 54px;
+    background-color: var(--background-secondary);
+    border-bottom: 1px solid var(--background-modifier-border);
+    font-size: 0.78em;
+    font-weight: 600;
+    color: var(--text-muted);
+    padding: 0 8px;
+    box-sizing: border-box;
+}
+
+.timebox-wbs-col-id {
+    width: 32px;
+    text-align: center;
+    font-size: 0.85em;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.timebox-wbs-col-task {
+    flex: 1;
+    min-width: 110px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    gap: 4px;
+}
+
+.timebox-wbs-col-desc {
+    width: 90px;
+    text-align: left;
+    font-size: 0.82em;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    cursor: pointer;
+    border-radius: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0 4px;
+    transition: background-color 0.1s ease;
+}
+
+.timebox-wbs-col-desc:hover {
+    color: var(--text-normal);
+    background-color: var(--background-modifier-hover);
+}
+
+.timebox-wbs-col-start,
+.timebox-wbs-col-due {
+    width: 52px;
+    text-align: center;
+    font-size: 0.85em;
+    cursor: pointer;
+    flex-shrink: 0;
+    border-radius: 3px;
+    transition: background-color 0.1s ease;
+}
+
+.timebox-wbs-col-start:hover,
+.timebox-wbs-col-due:hover,
+.timebox-wbs-col-dur:hover,
+.timebox-wbs-col-pred:hover,
+.timebox-wbs-col-res:hover {
+    color: var(--interactive-accent);
+    background-color: var(--background-modifier-hover);
+}
+
+.timebox-wbs-col-dur {
+    width: 38px;
+    text-align: center;
+    font-size: 0.85em;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+.timebox-wbs-col-pred {
+    width: 44px;
+    text-align: center;
+    font-size: 0.85em;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    cursor: pointer;
+    border-radius: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.timebox-wbs-col-res {
+    width: 62px;
+    text-align: left;
+    font-size: 0.85em;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    cursor: pointer;
+    border-radius: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.timebox-wbs-col-actions {
+    width: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.timebox-gantt-wbs-body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+}
+
+.timebox-gantt-wbs-row {
+    display: flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 8px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    font-size: 0.82em;
+    box-sizing: border-box;
+    transition: background 0.1s ease;
+}
+
+.timebox-gantt-wbs-row:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.timebox-gantt-wbs-row.is-parent-row {
+    font-weight: 600;
+    background-color: var(--background-secondary-alt);
+}
+
+.timebox-gantt-wbs-row.is-completed .timebox-wbs-title {
+    text-decoration: line-through;
+    opacity: 0.55;
+}
+
+.timebox-wbs-indent {
+    display: inline-block;
+    width: 18px;
+    flex-shrink: 0;
+}
+
+.timebox-wbs-chevron-spacer {
+    display: inline-block;
+    width: 18px;
+    flex-shrink: 0;
+}
+
+.timebox-wbs-chevron {
+    padding: 0;
+    margin-right: 2px;
+    flex-shrink: 0;
+}
+
+.timebox-wbs-checkbox {
+    margin-right: 4px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.timebox-wbs-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+/* Splitter Bar */
+.timebox-gantt-splitter {
+    width: 5px;
+    cursor: col-resize;
+    background-color: var(--background-modifier-border);
+    transition: background-color 0.2s ease;
+    flex-shrink: 0;
+    z-index: 4;
+}
+
+.timebox-gantt-splitter:hover,
+body.is-resizing-gantt-splitter .timebox-gantt-splitter {
+    background-color: var(--interactive-accent);
+}
+
+body.is-resizing-gantt-splitter {
+    cursor: col-resize;
+    user-select: none;
+}
+
+/* Right Timeline Pane */
+.timebox-gantt-timeline-pane {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+    background-color: var(--background-primary);
+    scrollbar-width: thin;
+}
+
+.timebox-gantt-timeline-header {
+    height: 54px;
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background-color: var(--background-secondary);
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.timebox-gantt-header-row {
+    position: relative;
+    width: 100%;
+}
+
+.timebox-gantt-header-row.is-top {
+    height: 28px;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.timebox-gantt-header-row.is-bottom {
+    height: 26px;
+}
+
+.timebox-gantt-header-cell {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75em;
+    color: var(--text-muted);
+    border-right: 1px solid var(--background-modifier-border);
+    box-sizing: border-box;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.timebox-gantt-header-cell.is-month {
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+.timebox-gantt-header-cell.is-day.is-today {
+    color: var(--interactive-accent);
+    font-weight: bold;
+    background-color: var(--background-modifier-hover);
+}
+
+/* Timeline Body */
+.timebox-gantt-timeline-body {
+    position: relative;
+}
+
+.timebox-gantt-grid-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+}
+
+.timebox-gantt-grid-line {
+    stroke: var(--background-modifier-border);
+    stroke-width: 1px;
+    opacity: 0.35;
+}
+
+.timebox-gantt-row-line {
+    stroke: var(--background-modifier-border);
+    stroke-width: 1px;
+    opacity: 0.25;
+}
+
+.timebox-gantt-weekend-shading {
+    fill: var(--background-secondary);
+    opacity: 0.45;
+}
+
+.timebox-gantt-today-line {
+    stroke: var(--interactive-accent);
+    stroke-width: 2px;
+    stroke-dasharray: 4 3;
+}
+
+/* Task Bars */
+.timebox-gantt-task-bar {
+    position: absolute;
+    background: var(--interactive-accent);
+    color: #ffffff !important;
+    border-radius: 4px;
+    font-size: 0.75em;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    cursor: grab;
+    user-select: none;
+    box-sizing: border-box;
+    transition: filter 0.12s ease, opacity 0.12s ease;
+    z-index: 1;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.timebox-gantt-task-bar:hover {
+    filter: brightness(1.12);
+}
+
+.timebox-gantt-task-bar.is-dragging {
+    cursor: grabbing;
+    opacity: 0.85;
+    z-index: 10;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.timebox-gantt-task-bar.is-completed {
+    background: var(--text-success);
+    opacity: 0.7;
+    text-decoration: line-through;
+}
+
+.timebox-gantt-task-bar-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+    color: #ffffff !important;
+    font-size: 11px;
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.timebox-gantt-drag-handle.is-right {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    cursor: ew-resize;
+    background: transparent;
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;
+}
+
+.timebox-gantt-drag-handle.is-right:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Summary Bar & Milestone SVGs */
+.timebox-gantt-summary-bar {
+    fill: var(--text-normal);
+}
+
+.timebox-gantt-summary-triangle {
+    fill: var(--text-normal);
+}
+
+.timebox-gantt-summary-group.is-completed .timebox-gantt-summary-bar,
+.timebox-gantt-summary-group.is-completed .timebox-gantt-summary-triangle {
+    fill: var(--text-success);
+    opacity: 0.6;
+}
+
+.timebox-gantt-milestone {
+    fill: var(--interactive-accent);
+    stroke: var(--background-primary);
+    stroke-width: 1.5px;
+    cursor: pointer;
+}
+
+.timebox-gantt-milestone.is-completed {
+    fill: var(--text-success);
+    opacity: 0.6;
+}
+
+.timebox-gantt-bar-label {
+    font-size: 11px;
+    fill: var(--text-normal);
+    font-family: var(--font-text);
+}
+
+/* WBS Row Selection & Predecessor Blocking */
+.timebox-gantt-wbs-row.timebox-wbs-row-active {
+    background-color: var(--interactive-accent) !important;
+    border-left: 3px solid var(--text-on-accent, #ffffff) !important;
+    color: #ffffff !important;
+}
+
+.timebox-gantt-wbs-row.timebox-wbs-row-active .timebox-wbs-col-id,
+.timebox-gantt-wbs-row.timebox-wbs-row-active .timebox-wbs-title,
+.timebox-gantt-wbs-row.timebox-wbs-row-active .timebox-wbs-col-desc,
+.timebox-gantt-wbs-row.timebox-wbs-row-active .timebox-wbs-col-start,
+.timebox-gantt-wbs-row.timebox-wbs-row-active .timebox-wbs-col-due,
+.timebox-gantt-wbs-row.timebox-wbs-row-active .timebox-wbs-col-dur,
+.timebox-gantt-wbs-row.timebox-wbs-row-active .timebox-wbs-col-pred,
+.timebox-gantt-wbs-row.timebox-wbs-row-active .timebox-wbs-col-res,
+.timebox-gantt-wbs-row.timebox-wbs-row-active .timebox-wbs-col-task,
+.timebox-gantt-wbs-row.timebox-wbs-row-active span,
+.timebox-gantt-wbs-row.timebox-wbs-row-active button {
+    color: #ffffff !important;
+}
+
+.timebox-gantt-wbs-row.timebox-wbs-row-active svg {
+    stroke: #ffffff !important;
+}
+
+.timebox-gantt-wbs-row.timebox-wbs-row-active .timebox-wbs-title {
+    color: #ffffff !important;
+    opacity: 1 !important;
+}
+
+/* Default / Unselected Row Colors */
+.timebox-gantt-wbs-row:not(.timebox-wbs-row-active) .timebox-wbs-title {
+    color: var(--text-normal);
+}
+
+.timebox-gantt-wbs-row.is-project-title-row {
+    font-weight: 700;
+    background-color: var(--background-secondary) !important;
+    border-bottom: 2px solid var(--background-modifier-border);
+}
+
+.timebox-gantt-wbs-row.is-project-title-row .timebox-wbs-col-id {
+    font-weight: 700;
+    color: var(--interactive-accent);
+}
+
+.timebox-gantt-wbs-row.is-blocked .timebox-wbs-title {
+    color: var(--text-muted);
+}
+
+.timebox-wbs-lock-icon {
+    font-size: 11px;
+    margin-right: 2px;
+    opacity: 0.85;
+    flex-shrink: 0;
+}
+
+/* Quick Add Task Row */
+.timebox-wbs-add-row {
+    display: flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 8px;
+    border-bottom: 1px dashed var(--background-modifier-border);
+    background: var(--background-primary-alt);
+    opacity: 0.9;
+}
+
+.timebox-wbs-add-row:hover,
+.timebox-wbs-add-row:focus-within {
+    opacity: 1;
+    background: var(--background-modifier-hover);
+}
+
+.timebox-wbs-add-input {
+    width: 100%;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    font-size: 0.85em;
+    padding: 2px 6px;
+    color: var(--text-normal);
+    outline: none;
+}
+
+.timebox-wbs-add-input:focus {
+    border-color: var(--interactive-accent);
+    background: var(--background-primary);
+}
+
+/* Inline Table Editors */
+.timebox-wbs-inline-input {
+    background: var(--background-primary);
+    border: 1px solid var(--interactive-accent);
+    border-radius: 3px;
+    font-size: 0.85em;
+    padding: 1px 4px;
+    width: 100%;
+    box-sizing: border-box;
+    color: var(--text-normal);
+    outline: none;
+}
+
+.timebox-wbs-inline-input.is-date {
+    padding: 0 1px;
+    font-size: 0.78em;
+}
+
+.timebox-wbs-inline-input.is-number {
+    text-align: center;
+}
+
+/* Predecessor SVG Dependency Lines */
+.timebox-gantt-dep-path {
+    fill: none;
+    stroke: var(--interactive-accent);
+    stroke-width: 1.5px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.8;
+}
+
+.timebox-gantt-dep-path.is-blocked {
+    stroke: var(--text-error);
+    stroke-dasharray: 4 2;
+    opacity: 0.9;
+}
+
+.timebox-gantt-dep-path.is-completed {
+    stroke: var(--text-success);
+    opacity: 0.6;
+}
+
+.timebox-gantt-marker-normal {
+    fill: var(--interactive-accent);
+}
+
+.timebox-gantt-marker-blocked {
+    fill: var(--text-error);
+}
+
+.timebox-gantt-marker-completed {
+    fill: var(--text-success);
+}
+
+/* Weekend Bridge & Blocked Bar */
+.timebox-gantt-weekend-bridge {
+    stroke: var(--text-muted);
+    stroke-width: 1.5px;
+    stroke-dasharray: 3 3;
+    opacity: 0.55;
+}
+
+.timebox-gantt-task-bar.is-blocked {
+    opacity: 0.75;
+    border: 1px dashed var(--text-error);
+}
+
+/* Resource Badges */
+.timebox-gantt-resource-tag {
+    position: absolute;
+    font-size: 10px;
+    color: var(--text-muted);
+    background: var(--background-secondary-alt);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 3px;
+    padding: 1px 4px;
+    white-space: nowrap;
+    pointer-events: none;
+    user-select: none;
+    z-index: 2;
+}
+
+/* Task Information Modal */
+.timebox-task-info-modal {
+    min-width: 440px;
+    max-width: 540px;
+}
+
+.timebox-task-info-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 16px 0;
+}
+
+.timebox-task-info-form .timebox-form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.timebox-task-info-form .timebox-form-row label {
+    font-size: 0.82em;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.timebox-task-info-form .timebox-form-row input[type="text"],
+.timebox-task-info-form .timebox-form-row input[type="date"],
+.timebox-task-info-form .timebox-form-row input[type="number"],
+.timebox-task-info-form .timebox-form-row textarea {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 0.85em;
+}
+
+.timebox-task-info-form .timebox-form-row textarea {
+    min-height: 60px;
+    resize: vertical;
+}
+
+.timebox-task-info-form .timebox-form-row.full-width {
+    grid-column: 1 / -1;
+}
+
+.timebox-task-info-form .timebox-form-row.flags-row {
+    display: flex;
+    flex-direction: row;
+    gap: 20px;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.timebox-checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 0.85em;
+    color: var(--text-normal);
+}
+
+.timebox-modal-wbs-tag {
+    font-size: 0.78em;
+    background: var(--background-secondary-alt);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin-left: 8px;
+    color: var(--text-muted);
+}
+
+.timebox-modal-footer-split {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.timebox-modal-footer-right {
+    display: flex;
+    gap: 8px;
+}
+
+/* ==========================================================================
+   Multi-View Switcher & Professional PM Controls
+   ========================================================================== */
+
+.timebox-view-switcher-bar {
+    display: flex;
+    gap: 6px;
+    padding: 6px 14px;
+    background: var(--background-secondary);
+    border-bottom: 1px solid var(--background-modifier-border);
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.timebox-view-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 5px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.timebox-view-tab-btn:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.timebox-view-tab-btn.is-active {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.timebox-tab-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.timebox-gantt-toggle-btn {
+    padding: 4px 9px;
+    font-size: 11px;
+    border-radius: 4px;
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-primary);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.timebox-gantt-toggle-btn:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.timebox-gantt-toggle-btn.is-active {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border-color: var(--interactive-accent);
+    font-weight: 600;
+}
+
+.timebox-task-icon-btn.is-disabled {
+    opacity: 0.35;
+    pointer-events: none;
+}
+
+/* ==========================================================================
+   Project Validation Banner
+   ========================================================================== */
+
+.timebox-validation-banner {
+    margin: 8px 14px 4px 14px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border-left: 4px solid;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.timebox-validation-banner.is-error {
+    border-color: var(--text-error, #f87171);
+    background: rgba(239, 68, 68, 0.12);
+}
+
+.timebox-validation-banner.is-warning {
+    border-color: var(--text-warning, #f59e0b);
+    background: rgba(245, 158, 11, 0.12);
+}
+
+.timebox-validation-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.timebox-validation-icon {
+    display: inline-flex;
+    align-items: center;
+    color: inherit;
+}
+
+.timebox-validation-text {
+    flex: 1;
+    font-weight: 500;
+}
+
+.timebox-validation-details-btn {
+    padding: 2px 8px;
+    font-size: 11px;
+    background: transparent;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.timebox-validation-details {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--background-modifier-border);
+}
+
+.timebox-validation-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.timebox-validation-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+}
+
+.timebox-validation-badge {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    text-transform: uppercase;
+}
+
+.timebox-validation-badge.is-error {
+    background: var(--text-error, #ef4444);
+    color: #ffffff;
+}
+
+.timebox-validation-badge.is-warning {
+    background: var(--text-warning, #f59e0b);
+    color: #000000;
+}
+
+.timebox-validation-type {
+    font-family: var(--font-monospace);
+    color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Task Sheet View
+   ========================================================================== */
+
+.timebox-task-sheet-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 12px 14px;
+    gap: 8px;
+}
+
+.timebox-sheet-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.timebox-sheet-info-text {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.timebox-task-sheet-wrapper {
+    flex: 1;
+    overflow: auto;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    background: var(--background-primary);
+}
+
+.timebox-task-sheet-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.timebox-task-sheet-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--background-secondary);
+    z-index: 10;
+    padding: 7px 8px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--background-modifier-border);
+    border-right: 1px solid var(--background-modifier-border);
+    user-select: none;
+}
+
+.timebox-task-sheet-table tbody td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    border-right: 1px solid var(--background-modifier-border);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.timebox-task-sheet-row:hover {
+    background: var(--background-modifier-hover);
+}
+
+.timebox-task-sheet-row.is-parent-row {
+    font-weight: 600;
+    background: var(--background-secondary-alt);
+}
+
+.timebox-task-sheet-row.is-completed {
+    opacity: 0.6;
+    text-decoration: line-through;
+}
+
+.timebox-task-sheet-row.is-critical-row td.col-wbs {
+    border-left: 3px solid var(--text-error, #ef4444);
+    font-weight: 700;
+}
+
+.timebox-float-badge.is-zero {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--text-error, #f87171);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 700;
+}
+
+.timebox-critical-badge {
+    background: var(--text-error, #ef4444);
+    color: #ffffff;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.timebox-sheet-resource-badge {
+    background: var(--background-secondary-alt);
+    border: 1px solid var(--background-modifier-border);
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 10px;
+    color: var(--text-accent);
+}
+
+.timebox-sheet-milestone-badge {
+    color: var(--text-accent);
+    font-size: 10px;
+    font-weight: 600;
+    margin-left: 6px;
+}
+
+/* ==========================================================================
+   Resource Sheet & Workload Views
+   ========================================================================== */
+
+.timebox-resource-sheet-pane,
+.timebox-resource-usage-pane {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.timebox-resource-summary-card {
+    padding: 4px 0;
+}
+
+.timebox-resource-alert-box {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid var(--text-error, #ef4444);
+    color: var(--text-error, #f87171);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    padding: 10px 14px;
+    border-radius: 6px;
+}
+
+.timebox-resource-pill {
+    font-weight: 600;
+    color: var(--text-accent);
+}
+
+.timebox-status-badge {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 600;
+}
+
+.timebox-status-badge.is-success {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--text-success, #34d399);
+}
+
+.timebox-status-badge.is-danger {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--text-error, #f87171);
+}
+
+.timebox-resource-usage-card {
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    padding: 14px;
+    background: var(--background-primary-alt);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.timebox-resource-usage-card.has-overallocation {
+    border-color: var(--text-error, #ef4444);
+}
+
+.timebox-usage-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.timebox-usage-card-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.timebox-resource-tag-large {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-accent);
+}
+
+.timebox-usage-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.timebox-usage-tasks {
+    font-size: 11px;
+}
+
+.timebox-usage-task-list {
+    margin: 4px 0 0 16px;
+    padding: 0;
+}
+
+.timebox-usage-days-wrapper {
+    margin-top: 4px;
+}
+
+.timebox-usage-days-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.timebox-usage-days-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.timebox-usage-day-cell {
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    padding: 4px 6px;
+    text-align: center;
+    min-width: 48px;
+    background: var(--background-secondary);
+}
+
+.timebox-usage-day-cell.is-overallocated {
+    background: rgba(239, 68, 68, 0.25);
+    border-color: var(--text-error, #ef4444);
+    color: var(--text-error, #f87171);
+    font-weight: 700;
+}
+
+.timebox-day-date {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.timebox-day-hours {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* ==========================================================================
+   Project Summary Dashboard
+   ========================================================================== */
+
+.timebox-project-summary-pane {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.timebox-summary-header h2 {
+    margin: 0;
+    font-size: 1.5em;
+}
+
+.timebox-summary-sub {
+    margin: 4px 0 0 0;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.timebox-summary-progress-section {
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.timebox-progress-header {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.timebox-progress-pct-label {
+    color: var(--interactive-accent);
+}
+
+.timebox-progress-bar-outer {
+    height: 10px;
+    border-radius: 5px;
+    background: var(--background-modifier-border);
+    overflow: hidden;
+}
+
+.timebox-progress-bar-inner {
+    height: 100%;
+    border-radius: 5px;
+    background: var(--interactive-accent);
+    transition: width 0.3s ease;
+}
+
+.timebox-summary-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.timebox-kpi-card {
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: relative;
+}
+
+.timebox-kpi-icon {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    color: var(--text-muted);
+    opacity: 0.6;
+}
+
+.timebox-kpi-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.timebox-kpi-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-normal);
+    margin: 4px 0;
+}
+
+.timebox-kpi-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.timebox-summary-section {
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    padding: 14px 16px;
+}
+
+.timebox-summary-section h3 {
+    margin: 0 0 10px 0;
+    font-size: 1.05em;
+}
+
+.timebox-critical-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--background-modifier-border);
+    font-size: 12px;
+}
+
+.timebox-critical-step {
+    font-weight: 700;
+    color: var(--text-error, #ef4444);
+    min-width: 24px;
+}
+
+.timebox-critical-wbs {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.timebox-critical-name {
+    font-weight: 600;
+    flex: 1;
+}
+
+.timebox-critical-dates {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.timebox-milestone-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--background-modifier-border);
+    font-size: 12px;
+}
+
+.timebox-milestone-name {
+    flex: 1;
+    font-weight: 500;
+}
+
+.timebox-milestone-date {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Gantt Critical Path & Baseline Highlights
+   ========================================================================== */
+
+.timebox-gantt-task-bar.is-critical {
+    border: 2px solid var(--text-error, #ef4444) !important;
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.45);
+}
+
+.timebox-gantt-summary-bar.is-critical {
+    fill: var(--text-error, #ef4444) !important;
+}
+
+.timebox-gantt-baseline-bar {
+    position: absolute;
+    z-index: 1;
+    height: 4px;
+    background: repeating-linear-gradient(45deg, #64748b, #64748b 3px, #475569 3px, #475569 6px);
+    border-radius: 2px;
+    opacity: 0.85;
+    pointer-events: none;
+}
+
+.timebox-gantt-baseline-bar.is-summary-baseline {
+    background: #94a3b8;
+    height: 3px;
+}
+
+
+
 
 
 

@@ -1,6 +1,7 @@
-import { App, Plugin, PluginSettingTab, Setting, TFile, Notice, AbstractInputSuggest, Editor, WorkspaceLeaf, moment } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, TFile, Notice, AbstractInputSuggest, Editor, WorkspaceLeaf, MarkdownView, moment } from 'obsidian';
 import { ProjectManager } from './projectManager';
 import { ProjectDashboardView, TIMEBOX_PROJECT_VIEW_TYPE } from './projectDashboardView';
+import { ProjectGanttView, TIMEBOX_GANTT_VIEW_TYPE } from './projectGanttView';
 import { ProjectSuggestModal } from './projectSuggestModal';
 import { WhatsNewModal } from './whatsNewModal';
 
@@ -29,7 +30,7 @@ const DEFAULT_SETTINGS: TimeBoxSettings = {
     timeBoxFolder: 'TimeBox',
     projectsFolder: 'TimeBox/Projects',
     enableProjectSync: true,
-    autoPushProjectTasksToToday: true,
+    autoPushProjectTasksToToday: false,
     hideCompletedProjectTasks: false,
     autoOpenOnStartup: true,
     lastSeenVersion: '',
@@ -57,6 +58,12 @@ export default class TimeBoxPlugin extends Plugin {
             (leaf) => new ProjectDashboardView(leaf, this)
         );
 
+        // Register custom view for project Gantt timeline
+        this.registerView(
+            TIMEBOX_GANTT_VIEW_TYPE,
+            (leaf) => new ProjectGanttView(leaf, this)
+        );
+
         // Add ribbon icon for today's timebox
         this.addRibbonIcon('calendar-clock', 'Open today\'s timebox', async () => {
             await this.openTimeBoxForDate(getMoment());
@@ -65,6 +72,11 @@ export default class TimeBoxPlugin extends Plugin {
         // Add ribbon icon for projects dashboard
         this.addRibbonIcon('kanban', 'Open projects dashboard', async () => {
             await this.activateProjectDashboardView();
+        });
+
+        // Add ribbon icon for project Gantt timeline
+        this.addRibbonIcon('bar-chart-2', 'Open project Gantt timeline', async () => {
+            await this.activateProjectGanttView();
         });
 
         // Add commands
@@ -97,6 +109,33 @@ export default class TimeBoxPlugin extends Plugin {
             name: 'Open TimeBox projects dashboard',
             callback: async () => {
                 await this.activateProjectDashboardView();
+            }
+        });
+
+        this.addCommand({
+            id: 'open-project-gantt-timeline',
+            name: 'Open project Gantt timeline',
+            callback: async () => {
+                await this.activateProjectGanttView();
+            }
+        });
+
+        this.addCommand({
+            id: 'create-new-project',
+            name: 'Create new project note...',
+            callback: () => {
+                const dashboardLeaves = this.app.workspace.getLeavesOfType(TIMEBOX_PROJECT_VIEW_TYPE);
+                if (dashboardLeaves.length > 0 && dashboardLeaves[0].view instanceof ProjectDashboardView) {
+                    void (dashboardLeaves[0].view as ProjectDashboardView).promptCreateProject();
+                } else {
+                    void (async () => {
+                        await this.activateProjectDashboardView();
+                        const leaves = this.app.workspace.getLeavesOfType(TIMEBOX_PROJECT_VIEW_TYPE);
+                        if (leaves.length > 0 && leaves[0].view instanceof ProjectDashboardView) {
+                            void (leaves[0].view as ProjectDashboardView).promptCreateProject();
+                        }
+                    })();
+                }
             }
         });
 
@@ -233,10 +272,21 @@ export default class TimeBoxPlugin extends Plugin {
                 modifyDebounceTimer = window.setTimeout(async () => {
                     if (this.projectManager.isInternalModification(file.path)) return;
 
+                    // Check if user is actively editing this file in MarkdownView
+                    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+                    const isCurrentActiveFile = activeView && activeView.file?.path === file.path;
+                    const activeCursorLine = isCurrentActiveFile ? activeView.editor.getCursor().line : -1;
+
                     const content = await this.app.vault.read(file);
                     const lines = content.split('\n');
 
-                    for (const line of lines) {
+                    for (let i = 0; i < lines.length; i++) {
+                        // Skip the line currently being typed by the user in the active editor
+                        if (isCurrentActiveFile && i === activeCursorLine) {
+                            continue;
+                        }
+
+                        const line = lines[i];
                         const trimmed = line.trim();
                         if (trimmed.startsWith('- [x]') || trimmed.startsWith('- [X]') || trimmed.startsWith('- [ ]')) {
                             const isCompleted = trimmed.startsWith('- [x]') || trimmed.startsWith('- [X]');
@@ -257,7 +307,8 @@ export default class TimeBoxPlugin extends Plugin {
                                     cleanedText,
                                     file,
                                     this.settings.timeBoxFolder,
-                                    this.settings.dateFormat
+                                    this.settings.dateFormat,
+                                    false // silent in background!
                                 );
                             }
 
@@ -271,7 +322,7 @@ export default class TimeBoxPlugin extends Plugin {
                                         if (targetProject) {
                                             const baseTaskText = cleanedText.replace(/\[\[[^\]]+\]\]/g, '').trim();
                                             if (baseTaskText.length > 2) {
-                                                await this.projectManager.addTaskToProject(targetProject, baseTaskText);
+                                                await this.projectManager.addTaskToProject(targetProject, baseTaskText, false);
                                             }
                                         }
                                     }
@@ -279,7 +330,7 @@ export default class TimeBoxPlugin extends Plugin {
                             }
                         }
                     }
-                }, 600);
+                }, 2500);
             })
         );
 
@@ -375,6 +426,35 @@ export default class TimeBoxPlugin extends Plugin {
             const rightSplit = (workspace as unknown as { rightSplit?: { expand?: () => void } }).rightSplit;
             if (rightSplit && typeof rightSplit.expand === 'function') {
                 rightSplit.expand();
+            }
+        }
+    }
+
+    async activateProjectGanttView(targetFilePath?: string): Promise<void> {
+        const { workspace } = this.app;
+        let leaf: WorkspaceLeaf | null = null;
+        const leaves = workspace.getLeavesOfType(TIMEBOX_GANTT_VIEW_TYPE);
+
+        if (leaves.length > 0) {
+            leaf = leaves[0];
+        } else {
+            leaf = workspace.getLeaf(true);
+            if (leaf) {
+                await leaf.setViewState({
+                    type: TIMEBOX_GANTT_VIEW_TYPE,
+                    active: true
+                });
+            }
+        }
+
+        if (leaf) {
+            workspace.setActiveLeaf(leaf, { focus: true });
+            if (leaf.view instanceof ProjectGanttView) {
+                if (targetFilePath) {
+                    leaf.view.setTargetProject(targetFilePath);
+                } else {
+                    await leaf.view.render();
+                }
             }
         }
     }

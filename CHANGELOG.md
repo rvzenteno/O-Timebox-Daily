@@ -1,5 +1,46 @@
 # Changelog - TimeBox Daily
 
+## [1.4.0] - 2026-09-15
+
+### Added & Major Architectural Upgrade
+- 🏗 **Clean Layered Project Management Architecture**:
+  - Pure, independently testable layers: `Markdown` ➔ `MarkdownAdapter` ➔ `NormalizedProject` ➔ `ProjectValidator` ➔ `SchedulingEngine` ➔ `ResourceEngine` ➔ `ProjectCommandManager` ➔ `Views`.
+  - Non-destructive, lossless round-trip Markdown parser and serializer preserving custom frontmatter, tags, comments, wikilinks, and unrecognized metadata.
+- ⚡ **Professional 2-Pass CPM Scheduling Engine**:
+  - Full Critical Path Method: forward pass and backward pass calculating Early Start/Finish, Late Start/Finish, Total Float, and Free Float.
+  - Critical Path identification and real-time visual highlight (`⚡ Critical Path` toggle).
+  - Preserves user-entered dates (`userStart`, `userFinish`) versus calculated dates (`calculatedStart`, `calculatedFinish`) and respects task constraint types (ASAP, ALAP, SNET, SNLT, FNET, FNLT, MSO, MFO).
+- 🔗 **First-Class Extensible Dependency Model**:
+  - Full support for `FS` (Finish-to-Start), `SS` (Start-to-Start), `FF` (Finish-to-Finish), and `SF` (Start-to-Finish) dependencies.
+  - Calendar-aware lead and lag durations (e.g. `1FS+2d`, `2.1SS-1d`).
+- 📅 **Calendar Engine & Working Day Calculation**:
+  - Working days, working hours per day, holidays, and custom date exceptions.
+  - Weekend split rendering on Gantt charts with dashed bridge connectors.
+- 👥 **Resource Management, Workload & Over-Allocation Detection**:
+  - Clear separation of **Duration** vs **Work** (`Work = Duration × Units × 8h`).
+  - Time-phased daily allocation matrix tracking peak allocation per team member.
+  - Automatic detection and visual alerts for concurrent task conflicts and resource over-allocations (> 100% capacity / > 8h/day).
+- 📊 **Versioned Baselines & Variance Tracking**:
+  - Snapshot schedules into versioned baselines (`Baseline 0`, `Baseline 1`, etc.).
+  - Gantt baseline comparison ghost bars rendering original planned timeline underneath current tasks.
+- 🛡 **First-Class Project Validation Layer**:
+  - Kahn's topological sort for circular dependency detection with cycle path traces.
+  - Detects duplicate task IDs, missing predecessor references, invalid constraints, and deadline violations.
+  - Collapsible validation alert banner surfacing actionable issues in the UI.
+- 🖥 **5 Professional Project Management Views**:
+  - **Gantt Chart**: Split-pane workspace with WBS tree, draggable splitter, interactive timeline bars, summary brackets, milestone diamonds, and dependency connector arrows.
+  - **Task Sheet**: Full-featured tabular spreadsheet with WBS codes, checkboxes, dates, duration, work hours, total float, free float, predecessors, resources, and % complete.
+  - **Resource Sheet**: Team directory with capacity units, total work hours, peak allocation, and over-allocation status badges.
+  - **Resource Usage**: Time-phased daily workload heatmap highlighting conflict days in bright red.
+  - **Project Summary**: Executive dashboard with overall progress bar, 4 KPI metric cards (Schedule, Tasks & Work, Critical Path, Baseline Tracking), critical path sequence, and milestones list.
+- ⏪ **Universal Undo / Redo Command Stack**:
+  - Designed into the command layer (`Ctrl+Z` / `Ctrl+Y`, toolbar buttons) for moving tasks, duration resizing, dependency modifications, indentation changes, and baseline snapshots.
+- 🚀 **High Performance & Benchmark Test Suite**:
+  - Benchmarked to schedule 1,000 tasks in ~11ms (< 100ms threshold).
+  - Automated Node.js test suite with 8 integration scenarios covering Kahn cycle detection, 20-task multi-level WBS projects, calendar stepping, resource matrices, baseline snapshots, and lossless round-tripping.
+
+---
+
 ## [1.3.3] - 2026-08-12
 
 ### Fixed & Compliant

@@ -26,6 +26,11 @@ export class WhatsNewModal extends Modal {
 
         const features = [
             {
+                icon: '📊',
+                title: 'Microsoft Project-Style Gantt Timeline',
+                desc: 'Visual timeline with interactive WBS task tree, resizable split screen, drag-to-reschedule bars, parent summary brackets, milestone diamonds, and Day/Week/Month zoom.'
+            },
+            {
                 icon: '🗂',
                 title: 'Collapsible Project Cards',
                 desc: 'Click any project header in the Projects Dashboard side panel to collapse or expand project tasks and focus on one project at a time.'

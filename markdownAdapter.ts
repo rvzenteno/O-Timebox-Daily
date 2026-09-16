@@ -1,0 +1,549 @@
+import {
+    NormalizedProject,
+    NormalizedTask,
+    TaskDependency,
+    DependencyType,
+    ConstraintType,
+    ResourceAssignment,
+    CalendarDefinition,
+    ProjectBaseline,
+    ResourceDefinition
+} from './projectModel';
+import { ProjectCalendar } from './projectCalendar';
+
+export class MarkdownAdapter {
+    /**
+     * Parse raw markdown file content into a NormalizedProject model.
+     * Backwards-compatible with legacy Timebox task tokens.
+     */
+    static parseProject(
+        filePath: string,
+        fileName: string,
+        content: string
+    ): NormalizedProject {
+        const lines = content.split('\n');
+
+        // 1. Parse Frontmatter metadata
+        const { frontmatter, bodyStartIndex } = this.parseFrontmatter(content, lines);
+
+        const startTaskNumber = Number(frontmatter['startTaskNumber']) || (frontmatter['projectTitleTask'] ? 2 : 1);
+        const projectDeadline = typeof frontmatter['deadline'] === 'string' ? frontmatter['deadline'] : undefined;
+        const schedulingDirection = frontmatter['scheduleMode'] === 'backward' ? 'backward' : 'forward';
+
+        // Calendars
+        const calendars: CalendarDefinition[] = Array.isArray(frontmatter['calendars']) && frontmatter['calendars'].length > 0
+            ? frontmatter['calendars']
+            : [ProjectCalendar.createStandardCalendar().toDefinition()];
+        const activeCalendarId = calendars[0].id;
+
+        // Resources
+        const resources: ResourceDefinition[] = Array.isArray(frontmatter['resources'])
+            ? frontmatter['resources']
+            : [];
+
+        // Baselines
+        const baselines: Record<string, ProjectBaseline> = typeof frontmatter['baselines'] === 'object' && frontmatter['baselines'] !== null
+            ? frontmatter['baselines']
+            : {};
+        const activeBaselineId = frontmatter['activeBaselineId'] || (baselines['baseline0'] ? 'baseline0' : undefined);
+
+        // 2. Parse Task lines (N-Level hierarchy)
+        const rawTasks: NormalizedTask[] = [];
+        let currentParentStack: { task: NormalizedTask; indent: number }[] = [];
+
+        for (let i = bodyStartIndex; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmed = line.trim();
+            const leadingWhitespace = line.match(/^[\s\t]*/)?.[0] || '';
+            const indentSpaces = leadingWhitespace.replace(/\t/g, '  ').length;
+
+            if (trimmed.startsWith('- [ ]') || trimmed.startsWith('- [x]') || trimmed.startsWith('- [X]')) {
+                const parsedTask = this.parseTaskLine(line, i, indentSpaces, filePath, fileName);
+
+                // Determine hierarchy using indentation stack
+                while (currentParentStack.length > 0 && currentParentStack[currentParentStack.length - 1].indent >= indentSpaces) {
+                    currentParentStack.pop();
+                }
+
+                if (currentParentStack.length > 0) {
+                    const parent = currentParentStack[currentParentStack.length - 1].task;
+                    parsedTask.parentId = parent.id;
+                    parsedTask.depth = parent.depth + 1;
+                    parent.childIds.push(parsedTask.id);
+                    parent.isSummary = true;
+                } else {
+                    parsedTask.depth = 0;
+                }
+
+                currentParentStack.push({ task: parsedTask, indent: indentSpaces });
+                rawTasks.push(parsedTask);
+            } else if (rawTasks.length > 0 && indentSpaces > 0 && !trimmed.startsWith('#') && trimmed.length > 0) {
+                // Indented notes / description under task
+                const lastTask = rawTasks[rawTasks.length - 1];
+                lastTask.lineCount++;
+                if (!lastTask.description) {
+                    lastTask.description = trimmed;
+                } else if (!lastTask.description.includes(trimmed)) {
+                    lastTask.description += ' ' + trimmed;
+                }
+            }
+        }
+
+        // 3. Assign WBS codes based on N-level hierarchy and startTaskNumber
+        this.assignWbsCodes(rawTasks, startTaskNumber === 2);
+
+        // 4. Build taskMap and collect all TaskDependencies
+        const taskMap = new Map<string, NormalizedTask>();
+        rawTasks.forEach(t => taskMap.set(t.id, t));
+
+        const dependencies: TaskDependency[] = [];
+        for (const task of rawTasks) {
+            const parsedDeps = this.extractDependencies(task, rawTasks);
+            dependencies.push(...parsedDeps);
+        }
+
+        const project: NormalizedProject = {
+            id: filePath,
+            name: fileName.replace(/\.md$/, ''),
+            filePath,
+            tasks: rawTasks,
+            taskMap,
+            dependencies,
+            resources,
+            calendars,
+            activeCalendarId,
+            baselines,
+            activeBaselineId,
+            schedulingDirection,
+            projectStartDate: rawTasks[0]?.userStart || new Date().toISOString().slice(0, 10),
+            projectFinishDate: rawTasks[rawTasks.length - 1]?.userFinish || rawTasks[0]?.userStart || new Date().toISOString().slice(0, 10),
+            projectDeadline,
+            startTaskNumber,
+            totalWorkHours: 0,
+            totalCost: 0,
+            overallProgressPercent: 0,
+            criticalPath: [],
+            validationIssues: []
+        };
+
+        (project as any).rawContent = content;
+
+        return project;
+    }
+
+
+    /**
+     * Parse frontmatter block safely.
+     */
+    private static parseFrontmatter(content: string, lines: string[]): { frontmatter: Record<string, any>; bodyStartIndex: number } {
+        const frontmatter: Record<string, any> = {};
+        let bodyStartIndex = 0;
+
+        if (content.startsWith('---')) {
+            const endIdx = content.indexOf('\n---', 3);
+            if (endIdx !== -1) {
+                const fmText = content.substring(3, endIdx);
+                const fmLines = fmText.split('\n');
+                bodyStartIndex = fmLines.length + 2; // skip both '---' delimiters
+
+                for (const fLine of fmLines) {
+                    const colonIdx = fLine.indexOf(':');
+                    if (colonIdx > 0) {
+                        const key = fLine.substring(0, colonIdx).trim();
+                        const val = fLine.substring(colonIdx + 1).trim();
+                        if (val === 'true') frontmatter[key] = true;
+                        else if (val === 'false') frontmatter[key] = false;
+                        else if (!isNaN(Number(val)) && val !== '') frontmatter[key] = Number(val);
+                        else frontmatter[key] = val.replace(/^['"](.*)['"]$/, '$1');
+                    }
+                }
+            }
+        }
+
+        return { frontmatter, bodyStartIndex };
+    }
+
+    /**
+     * Parse single checklist line into NormalizedTask with preservation of custom tokens.
+     */
+    private static parseTaskLine(
+        rawLine: string,
+        lineIndex: number,
+        indentSpaces: number,
+        filePath: string,
+        fileName: string
+    ): NormalizedTask {
+        const trimmed = rawLine.trim();
+        const completed = trimmed.startsWith('- [x]') || trimmed.startsWith('- [X]');
+        const textWithoutCheckbox = trimmed.replace(/^-\s*\[[ xX]\]\s*/, '');
+
+        // Match standard tokens
+        const startMatch = textWithoutCheckbox.match(/🛫\s*(\d{4}-\d{2}-\d{2})/);
+        const dueMatch = textWithoutCheckbox.match(/📅\s*(\d{4}-\d{2}-\d{2})/);
+        const durMatch = textWithoutCheckbox.match(/⏳\s*(\d+)d?/);
+        const isMilestone = /#milestone\b/i.test(textWithoutCheckbox);
+
+        const deadlineMatch = textWithoutCheckbox.match(/⏰\s*(\d{4}-\d{2}-\d{2})/) 
+            || textWithoutCheckbox.match(/\[deadline::\s*(\d{4}-\d{2}-\d{2})\]/i);
+
+        const progressMatch = textWithoutCheckbox.match(/\[%::\s*(\d+)\]/i) 
+            || textWithoutCheckbox.match(/\[progress::\s*(\d+)%?\]/i);
+
+        const priorityMatch = textWithoutCheckbox.match(/\[priority::\s*(\d+|high|medium|low)\]/i);
+        let priority = 500;
+        if (priorityMatch) {
+            const pVal = priorityMatch[1].toLowerCase();
+            if (pVal === 'high') priority = 750;
+            else if (pVal === 'low') priority = 250;
+            else if (!isNaN(Number(pVal))) priority = Number(pVal);
+        }
+
+        const constraintMatch = textWithoutCheckbox.match(/\[constraint::\s*(asap|alap|snet|snlt|fnet|fnlt|mso|mfo)(?:\s+(\d{4}-\d{2}-\d{2}))?\]/i);
+        const constraintType: ConstraintType = (constraintMatch ? constraintMatch[1].toLowerCase() : 'asap') as ConstraintType;
+        const constraintDate = constraintMatch ? constraintMatch[2] : undefined;
+
+        // Assigned resources: e.g. @Roberto, @Roberto:1.0, @Roberto:100%, [assigned:: @Roberto:100%, @Victor:50%]
+        const assignments: ResourceAssignment[] = [];
+        const assignedTokenMatch = textWithoutCheckbox.match(/\[assigned::\s*([^\]]+)\]/i);
+        if (assignedTokenMatch) {
+            const parts = assignedTokenMatch[1].split(',');
+            for (const part of parts) {
+                const item = part.trim().replace(/^@/, '');
+                const colonIdx = item.indexOf(':');
+                if (colonIdx > 0) {
+                    const rName = item.substring(0, colonIdx).trim();
+                    const rawUnits = item.substring(colonIdx + 1).replace('%', '').trim();
+                    const rUnits = item.includes('%') ? (parseFloat(rawUnits) / 100 || 1.0) : (parseFloat(rawUnits) || 1.0);
+                    assignments.push({ resourceId: rName, units: rUnits });
+                } else if (item.length > 0) {
+                    assignments.push({ resourceId: item, units: 1.0 });
+                }
+            }
+        } else {
+            const atMatches = textWithoutCheckbox.match(/@([a-zA-Z0-9_\-\.]+)(?::([0-9\.]+)(?:%|h)?)?/g);
+            if (atMatches) {
+                for (const atM of atMatches) {
+                    const withoutAt = atM.substring(1);
+                    const colonIdx = withoutAt.indexOf(':');
+                    if (colonIdx > 0) {
+                        const rName = withoutAt.substring(0, colonIdx).trim();
+                        const rawUnits = withoutAt.substring(colonIdx + 1).replace('%', '').trim();
+                        const rUnits = atM.includes('%') ? (parseFloat(rawUnits) / 100 || 1.0) : (parseFloat(rawUnits) || 1.0);
+                        assignments.push({ resourceId: rName, units: isNaN(rUnits) ? 1.0 : rUnits });
+                    } else {
+                        assignments.push({ resourceId: withoutAt.trim(), units: 1.0 });
+                    }
+                }
+            }
+        }
+
+        // Description
+        const descMatch = textWithoutCheckbox.match(/\[desc::\s*([^\]]+)\]/i) || textWithoutCheckbox.match(/📝\s*([^\n🛫📅⏳@#\[]+)/);
+        const description = descMatch ? descMatch[1].trim() : undefined;
+
+        // Custom tokens preserved for lossless roundtrip
+        const customTokens: string[] = [];
+        const customTokenMatches = textWithoutCheckbox.match(/\[([a-zA-Z0-9_\-]+::\s*[^\]]+)\]/g);
+        if (customTokenMatches) {
+            for (const token of customTokenMatches) {
+                if (!token.startsWith('[desc::') && !token.startsWith('[assigned::') && !token.startsWith('[constraint::') && !token.startsWith('[%::') && !token.startsWith('[priority::') && !token.startsWith('[deadline::')) {
+                    customTokens.push(token);
+                }
+            }
+        }
+
+        // Custom HTML comments
+        const htmlCommentMatches = textWithoutCheckbox.match(/<!--[\s\S]*?-->/g);
+        if (htmlCommentMatches) {
+            for (const c of htmlCommentMatches) {
+                customTokens.push(c);
+            }
+        }
+
+        // Custom hashtags (excluding #milestone)
+        const hashtagMatches = textWithoutCheckbox.match(/#[a-zA-Z0-9_\-]+/g);
+        if (hashtagMatches) {
+            for (const tag of hashtagMatches) {
+                if (tag.toLowerCase() !== '#milestone') {
+                    customTokens.push(tag);
+                }
+            }
+        }
+
+        // Clean task title
+        const cleanTitle = textWithoutCheckbox
+            .replace(/^(\s*-\s*\[[ xX]\]\s*)+/g, '')
+            .replace(/🛫\s*\d{4}-\d{2}-\d{2}/g, '')
+            .replace(/📅\s*\d{4}-\d{2}-\d{2}/g, '')
+            .replace(/⏳\s*\d+d?/g, '')
+            .replace(/⏰\s*\d{4}-\d{2}-\d{2}/g, '')
+            .replace(/\[deadline::\s*\d{4}-\d{2}-\d{2}\]/gi, '')
+            .replace(/dependsOn::\s*#?[0-9a-zA-Z.,_+\-\s#]+/gi, '')
+            .replace(/after:\s*#?[0-9a-zA-Z.,_+\-\s#]+/gi, '')
+            .replace(/\[assigned::\s*[^\]]+\]/gi, '')
+            .replace(/@([a-zA-Z0-9_\-\.]+)(?::[0-9\.]+(?:%|h)?)?/g, '')
+            .replace(/\[constraint::\s*[^\]]+\]/gi, '')
+            .replace(/\[%::\s*\d+\]/gi, '')
+            .replace(/\[progress::\s*\d+%?\]/gi, '')
+            .replace(/\[priority::\s*[^\]]+\]/gi, '')
+            .replace(/\[desc::\s*[^\]]+\]/gi, '')
+            .replace(/📝\s*[^\n🛫📅⏳@#\[]+/g, '')
+            .replace(/#milestone\b/gi, '')
+            .replace(/#[a-zA-Z0-9_\-]+/g, '')
+            .replace(/<!--[\s\S]*?-->/g, '')
+            .replace(/\[([a-zA-Z0-9_\-]+::\s*[^\]]+)\]/g, '')
+            .replace(/^(\s*-\s*\[[ xX]\]\s*)+/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+
+        const userStart = startMatch ? startMatch[1] : undefined;
+        const userFinish = dueMatch ? dueMatch[1] : undefined;
+        let durationDays = durMatch ? parseInt(durMatch[1], 10) : 1;
+        if (isMilestone) durationDays = 0;
+
+        const percentComplete = progressMatch ? parseInt(progressMatch[1], 10) : (completed ? 100 : 0);
+
+        const taskId = `task-${lineIndex}`;
+
+        return {
+            id: taskId,
+            wbsCode: '',
+            wbsIndex: lineIndex + 1,
+            title: cleanTitle || 'Untitled Task',
+            description,
+            lineIndex,
+            depth: 0,
+            childIds: [],
+            isSummary: false,
+            isMilestone,
+            completed,
+            percentComplete,
+            percentWorkComplete: percentComplete,
+            userStart,
+            userFinish,
+            durationDays,
+            workHours: durationDays * 8,
+            taskType: 'fixed-duration',
+            schedulingMode: 'auto',
+            constraintType,
+            constraintDate,
+            deadline: deadlineMatch ? deadlineMatch[1] : undefined,
+            priority,
+            calculatedStart: userStart || new Date().toISOString().slice(0, 10),
+            calculatedFinish: userFinish || userStart || new Date().toISOString().slice(0, 10),
+            earlyStart: userStart || new Date().toISOString().slice(0, 10),
+            earlyFinish: userFinish || userStart || new Date().toISOString().slice(0, 10),
+            lateStart: userStart || new Date().toISOString().slice(0, 10),
+            lateFinish: userFinish || userStart || new Date().toISOString().slice(0, 10),
+            totalFloat: 0,
+            freeFloat: 0,
+            isCritical: false,
+            isBlocked: false,
+            assignments,
+            cost: 0,
+            customTokens,
+            rawLine,
+            lineCount: 1
+        };
+    }
+
+    /**
+     * Compute recursive WBS codes (e.g. "0", "1", "1.1", "1.2", "1.2.1").
+     */
+    private static assignWbsCodes(tasks: NormalizedTask[], hasProjectTitleTask: boolean): void {
+        const rootTasks = tasks.filter(t => !t.parentId);
+        let rootCounter = 1;
+
+        for (let i = 0; i < rootTasks.length; i++) {
+            const root = rootTasks[i];
+            if (hasProjectTitleTask && i === 0) {
+                root.wbsCode = '0';
+                root.wbsIndex = 0;
+            } else {
+                const effectiveIndex = hasProjectTitleTask ? i : rootCounter++;
+                root.wbsCode = String(effectiveIndex);
+                root.wbsIndex = i + 1;
+            }
+            this.assignChildWbsCodes(root, root.wbsCode, tasks);
+        }
+    }
+
+    private static assignChildWbsCodes(parent: NormalizedTask, parentCode: string, allTasks: NormalizedTask[]): void {
+        const children = allTasks.filter(t => t.parentId === parent.id);
+        children.forEach((child, idx) => {
+            child.wbsCode = `${parentCode}.${idx + 1}`;
+            child.wbsIndex = idx + 1;
+            this.assignChildWbsCodes(child, child.wbsCode, allTasks);
+        });
+    }
+
+    /**
+     * Extract dependencies from task rawLine / tokens.
+     */
+    private static extractDependencies(task: NormalizedTask, allTasks: NormalizedTask[]): TaskDependency[] {
+        const raw = task.rawLine || '';
+        const predMatch = raw.match(/dependsOn::\s*#?([0-9a-zA-Z.,_+\-\s#]+)/i) 
+            || raw.match(/after:\s*#?([0-9a-zA-Z.,_+\-\s#]+)/i);
+
+        if (!predMatch || !predMatch[1]) return [];
+
+        const deps: TaskDependency[] = [];
+        const items = predMatch[1].split(',').map(s => s.replace(/#/g, '').trim()).filter(s => s.length > 0);
+
+        for (const item of items) {
+            // Match syntax: e.g. "2.1FS+2d", "2SS", "3FF-1d", "4", "2.1"
+            const match = item.match(/^([0-9.]+)\s*(FS|SS|FF|SF)?\s*([+\-]\s*\d+d?)?$/i);
+            if (match) {
+                const predWbs = match[1];
+                const type: DependencyType = (match[2] ? match[2].toUpperCase() : 'FS') as DependencyType;
+                const lag = match[3] ? parseInt(match[3].replace(/[d\s]/gi, ''), 10) : 0;
+
+                // Find matching task by wbsCode or id
+                const predTask = allTasks.find(t => t.wbsCode === predWbs || String(t.wbsIndex) === predWbs || t.id === predWbs);
+                if (predTask) {
+                    deps.push({
+                        id: `dep-${predTask.id}-${task.id}`,
+                        fromTaskId: predTask.id,
+                        toTaskId: task.id,
+                        type,
+                        lag,
+                        rawExpression: item
+                    });
+                }
+            }
+        }
+
+        return deps;
+    }
+
+    /**
+     * Surgically serialize a single task line back into markdown format.
+     * Preserves user indentation, checkboxes, and unknown custom tokens.
+     */
+    static serializeTaskLine(task: NormalizedTask, project: NormalizedProject): string {
+        const indent = '  '.repeat(task.depth);
+        const checkbox = task.completed ? '- [x]' : '- [ ]';
+        const tokens: string[] = [];
+
+        // Dates
+        const start = task.calculatedStart || task.userStart;
+        const finish = task.calculatedFinish || task.userFinish;
+        if (start) tokens.push(`🛫 ${start}`);
+        if (finish) tokens.push(`📅 ${finish}`);
+
+        // Duration (if not milestone and > 1)
+        if (!task.isMilestone && task.durationDays > 1) {
+            tokens.push(`⏳ ${task.durationDays}d`);
+        }
+
+        // Deadline
+        if (task.deadline) {
+            tokens.push(`⏰ ${task.deadline}`);
+        }
+
+        // Dependencies
+        const taskDeps = project.dependencies.filter(d => d.toTaskId === task.id);
+        if (taskDeps.length > 0) {
+            const depStrings = taskDeps.map(d => {
+                const pred = project.taskMap.get(d.fromTaskId);
+                const predRef = pred ? pred.wbsCode : d.fromTaskId;
+                const typeStr = d.type !== 'FS' ? d.type : '';
+                const lagStr = d.lag !== 0 ? (d.lag > 0 ? `+${d.lag}d` : `${d.lag}d`) : '';
+                return `${predRef}${typeStr}${lagStr}`;
+            });
+            tokens.push(`dependsOn:: ${depStrings.join(', ')}`);
+        }
+
+        // Resources
+        if (task.assignments.length > 0) {
+            const resParts = task.assignments.map(a => {
+                return a.units === 1.0 ? `@${a.resourceId}` : `@${a.resourceId}:${Math.round(a.units * 100)}%`;
+            });
+            tokens.push(resParts.join(' '));
+        }
+
+        // Constraints
+        if (task.constraintType && task.constraintType !== 'asap') {
+            const cDateStr = task.constraintDate ? ` ${task.constraintDate}` : '';
+            tokens.push(`[constraint:: ${task.constraintType}${cDateStr}]`);
+        }
+
+        // Priority
+        if (task.priority && task.priority !== 500) {
+            tokens.push(`[priority:: ${task.priority}]`);
+        }
+
+        // Progress
+        if (task.percentComplete > 0 && task.percentComplete < 100) {
+            tokens.push(`[%:: ${task.percentComplete}]`);
+        }
+
+        // Description
+        if (task.description && !task.description.includes('\n')) {
+            tokens.push(`[desc:: ${task.description}]`);
+        }
+
+        // Milestone
+        if (task.isMilestone) {
+            tokens.push('#milestone');
+        }
+
+        // Custom tokens
+        if (task.customTokens && task.customTokens.length > 0) {
+            tokens.push(...task.customTokens);
+        }
+
+        const tokenStr = tokens.length > 0 ? ` ${tokens.join(' ')}` : '';
+        return `${indent}${checkbox} ${task.title}${tokenStr}`;
+    }
+
+    /**
+     * Surgically update task lines in content without altering unrelated text or comments.
+     */
+    static updateTaskInContent(content: string, task: NormalizedTask, project: NormalizedProject): string {
+        const lines = content.split('\n');
+        if (task.lineIndex < 0 || task.lineIndex >= lines.length) {
+            return content;
+        }
+
+        lines[task.lineIndex] = this.serializeTaskLine(task, project);
+        return lines.join('\n');
+    }
+
+    /**
+     * Serialize an entire NormalizedProject into Markdown.
+     * If rawContent is provided (or stored on project), performs non-destructive line updates
+     * preserving all existing frontmatter, headers, prose, wikilinks, tags, and non-task text.
+     */
+    static serializeProject(project: NormalizedProject, rawContent?: string): string {
+        const baseContent = rawContent || (project as any).rawContent;
+        if (baseContent) {
+            const lines = baseContent.split('\n');
+            for (const task of project.tasks) {
+                if (task.lineIndex >= 0 && task.lineIndex < lines.length) {
+                    lines[task.lineIndex] = this.serializeTaskLine(task, project);
+                }
+            }
+            return lines.join('\n');
+        }
+
+        // Fallback: construct clean markdown
+        const lines: string[] = [];
+        lines.push('---');
+        lines.push(`title: ${project.name}`);
+        if (project.projectStartDate) lines.push(`projectStartDate: ${project.projectStartDate}`);
+        if (project.projectDeadline) lines.push(`deadline: ${project.projectDeadline}`);
+        lines.push('---');
+        lines.push('');
+        lines.push(`# ${project.name}`);
+        lines.push('');
+
+        for (const task of project.tasks) {
+            lines.push(this.serializeTaskLine(task, project));
+        }
+
+        return lines.join('\n');
+    }
+}
+

@@ -1,4 +1,4 @@
-import { App, ItemView, WorkspaceLeaf, TFile, setIcon, Modal, Setting } from 'obsidian';
+import { App, ItemView, WorkspaceLeaf, TFile, setIcon, Modal, Setting, Notice } from 'obsidian';
 import { ProjectManager, ProjectData, ProjectTask } from './projectManager';
 import TimeBoxPlugin from './main';
 
@@ -77,6 +77,15 @@ export class ProjectDashboardView extends ItemView {
 
             const controlsEl = headerEl.createDiv({ cls: 'timebox-header-controls' });
 
+            const addProjectBtn = controlsEl.createEl('button', {
+                cls: 'timebox-task-icon-btn',
+                title: 'Create new project'
+            });
+            setIcon(addProjectBtn, 'plus');
+            addProjectBtn.addEventListener('click', () => {
+                void this.promptCreateProject();
+            });
+
             const toggleCompletedBtn = controlsEl.createEl('button', {
                 cls: 'timebox-task-icon-btn',
                 title: this.plugin.settings.hideCompletedProjectTasks ? 'Show completed tasks' : 'Hide completed tasks'
@@ -88,6 +97,15 @@ export class ProjectDashboardView extends ItemView {
                     await this.plugin.saveSettings();
                     void this.render();
                 })();
+            });
+
+            const ganttViewBtn = controlsEl.createEl('button', {
+                cls: 'timebox-task-icon-btn',
+                title: 'Open Project Gantt Timeline'
+            });
+            setIcon(ganttViewBtn, 'bar-chart-2');
+            ganttViewBtn.addEventListener('click', () => {
+                void this.plugin.activateProjectGanttView();
             });
 
             const refreshBtn = controlsEl.createEl('button', {
@@ -104,9 +122,16 @@ export class ProjectDashboardView extends ItemView {
             );
 
             if (projectsData.length === 0) {
-                container.createDiv({
-                    cls: 'timebox-empty-view',
-                    text: `No project notes found in "${this.plugin.settings.projectsFolder}". Create an .md file in that folder to get started!`
+                const emptyEl = container.createDiv({ cls: 'timebox-empty-view' });
+                emptyEl.createEl('p', {
+                    text: `No project notes found in "${this.plugin.settings.projectsFolder}".`
+                });
+                const createBtn = emptyEl.createEl('button', {
+                    cls: 'mod-cta',
+                    text: '+ Create Project'
+                });
+                createBtn.addEventListener('click', () => {
+                    void this.promptCreateProject();
                 });
                 return;
             }
@@ -125,12 +150,13 @@ export class ProjectDashboardView extends ItemView {
         }
     }
 
-    private collapsedProjects: Set<string> = new Set();
+    private expandedProjects: Set<string> = new Set();
     private expandedSubtasks: Set<string> = new Set();
     private activeSubtaskInputs: Set<string> = new Set();
 
     renderProjectCard(parentEl: HTMLElement, proj: ProjectData): void {
-        const isCollapsed = this.collapsedProjects.has(proj.file.path);
+        const isExpanded = this.expandedProjects.has(proj.file.path);
+        const isCollapsed = !isExpanded;
         const cardEl = parentEl.createDiv({
             cls: `timebox-project-card ${isCollapsed ? 'is-collapsed' : ''}`
         });
@@ -164,13 +190,24 @@ export class ProjectDashboardView extends ItemView {
             })();
         });
 
+        // Open Gantt View Button (📊 / bar-chart icon)
+        const openGanttBtn = headerLeft.createEl('button', {
+            cls: 'timebox-task-icon-btn timebox-project-gantt-btn',
+            title: `Open "${proj.name}" in Gantt View`
+        });
+        setIcon(openGanttBtn, 'bar-chart-2');
+        openGanttBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            void this.plugin.activateProjectGanttView(proj.file.path);
+        });
+
         // Toggle Collapse when clicking header or chevron
         const handleToggleCollapse = (e: MouseEvent) => {
             e.stopPropagation();
-            if (isCollapsed) {
-                this.collapsedProjects.delete(proj.file.path);
+            if (isExpanded) {
+                this.expandedProjects.delete(proj.file.path);
             } else {
-                this.collapsedProjects.add(proj.file.path);
+                this.expandedProjects.add(proj.file.path);
             }
             void this.render();
         };
@@ -508,19 +545,39 @@ export class ProjectDashboardView extends ItemView {
 
             onOpen() {
                 const { contentEl } = this;
-                contentEl.createEl('h3', { text: 'Create New Project' });
+                contentEl.createEl('h3', { text: '➕ Create New Project' });
+
+                const submitAction = () => {
+                    const trimmed = this.resultName.trim();
+                    if (!trimmed) {
+                        new Notice('Please enter a project name');
+                        return;
+                    }
+                    this.close();
+                    this.onSubmit(trimmed);
+                };
 
                 new Setting(contentEl)
                     .setName('Project Name')
-                    .addText((text) => text.onChange((val) => (this.resultName = val)));
+                    .setDesc('Name of the new project (a note will be created in TimeBox/Projects)')
+                    .addText((text) => {
+                        text.setPlaceholder('e.g. Website Redesign')
+                            .onChange((val) => (this.resultName = val));
+                        text.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                submitAction();
+                            }
+                        });
+                        window.setTimeout(() => text.inputEl.focus(), 50);
+                    });
 
                 new Setting(contentEl).addButton((btn) =>
                     btn
-                        .setButtonText('Create')
+                        .setButtonText('Create Project')
                         .setCta()
                         .onClick(() => {
-                            this.close();
-                            this.onSubmit(this.resultName);
+                            submitAction();
                         })
                 );
             }
