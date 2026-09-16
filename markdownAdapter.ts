@@ -914,6 +914,7 @@ export class MarkdownAdapter {
             if (project.resources && project.resources.length > 0) updates['resources'] = project.resources;
             if (project.baselines && Object.keys(project.baselines).length > 0) updates['baselines'] = project.baselines;
             if (project.activeBaselineId) updates['activeBaselineId'] = project.activeBaselineId;
+            if (project.statusDate) updates['statusDate'] = project.statusDate;
 
             const fmResult = this.updateFrontmatterInContent(baseContent, updates);
             const lines = fmResult.content.split('\n');
@@ -936,6 +937,7 @@ export class MarkdownAdapter {
         if (project.projectDeadline) lines.push(`deadline: ${project.projectDeadline}`);
         if (project.schedulingDirection) lines.push(`scheduleMode: ${project.schedulingDirection}`);
         if (project.activeCalendarId) lines.push(`activeCalendarId: ${project.activeCalendarId}`);
+        if (project.statusDate) lines.push(`statusDate: ${project.statusDate}`);
         lines.push('---');
         lines.push('');
         lines.push(`# ${project.name}`);

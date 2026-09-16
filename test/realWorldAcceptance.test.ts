@@ -433,4 +433,137 @@ test('REAL-WORLD ACCEPTANCE TEST: Commercial Facility Buildout & Signal Infrastr
             }
         }
     });
+
+    // -------------------------------------------------------------
+    // Step 9 / Phase 5: End-to-End Project Controls Lifecycle:
+    // Plan → Baseline → Execute → Enter Actuals → Change Status Date → Forecast → Review Variance → Replan
+    // -------------------------------------------------------------
+    await t.test('13. Lifecycle Parity: Plan → Baseline → Execute → Actuals → Status Date → Forecast → Variance → Replan', () => {
+        // 1. PLAN: Start with fresh parse of 55-task realistic project
+        const lifecycleProject = MarkdownAdapter.parseProject('realistic-commercial-buildout.md', 'Commercial Facility Buildout', rawContent);
+        const planSchedule = SchedulingEngine.schedule(lifecycleProject);
+
+        assert.ok(planSchedule.projectStartDate, 'Plan start date established');
+        assert.ok(planSchedule.projectFinishDate, 'Plan finish date established');
+        const initialProjectFinish = planSchedule.projectFinishDate;
+
+        // 2. BASELINE: Save Baseline 0 (Contract Approval)
+        const baselined = SchedulingEngine.saveBaseline(planSchedule, '0', 'Baseline 0 - Initial Contract');
+        assert.ok(baselined.baselines['0'], 'Baseline 0 created');
+        assert.strictEqual(baselined.activeBaselineId, '0');
+
+        const task1Id = baselined.tasks.find(t => t.wbsCode === '1.1.1.1.1')!.id;
+        const task2Id = baselined.tasks.find(t => t.wbsCode === '1.1.1.1.2')!.id;
+        const task3Id = baselined.tasks.find(t => t.wbsCode === '1.1.1.2')!.id;
+
+        const b0_t1 = baselined.baselines['0'].tasks[task1Id];
+        const b0_t2 = baselined.baselines['0'].tasks[task2Id];
+        assert.ok(b0_t1, 'Task 1 in Baseline 0');
+        assert.ok(b0_t2, 'Task 2 in Baseline 0');
+        const b0_t1_start = b0_t1.start;
+        const b0_t1_finish = b0_t1.finish;
+        const b0_t2_start = b0_t2.start;
+        const b0_t2_finish = b0_t2.finish;
+
+        // 3. EXECUTE & ENTER ACTUALS:
+        // Task 1: Completed 1 day early!
+        const task1 = baselined.tasks.find(t => t.id === task1Id)!;
+        task1.actualStart = '2026-09-14';
+        task1.actualFinish = '2026-09-15'; // Planned was 2026-09-15 finish, 2 days
+        task1.completed = true;
+        task1.percentComplete = 100;
+        task1.actualWorkHours = 16;
+
+        // Task 2: Started on time (2026-09-16), but delayed in progress!
+        const task2 = baselined.tasks.find(t => t.id === task2Id)!;
+        task2.completed = false;
+        task2.actualStart = '2026-09-16';
+        task2.actualFinish = undefined;
+        task2.percentComplete = 50;
+        task2.actualWorkHours = 24;
+
+        // Task 3: Unstarted (0%)
+        const task3 = baselined.tasks.find(t => t.id === task3Id)!;
+        task3.completed = false;
+        task3.actualStart = undefined;
+        task3.actualFinish = undefined;
+        task3.actualWork = undefined;
+        task3.actualWorkHours = undefined;
+        task3.percentComplete = 0;
+
+        // 4. CHANGE STATUS DATE:
+        // Advance project status date to 2026-09-23 (Wednesday)
+        baselined.statusDate = '2026-09-23';
+
+        // 5. FORECAST: Run scheduling & forecast engine
+        const forecasted = SchedulingEngine.schedule(baselined);
+
+        // Verify Forecast vs Plan separation:
+        // Planned dates must remain untouched!
+        const f_t1 = forecasted.tasks.find(t => t.id === task1Id)!;
+        const f_t2 = forecasted.tasks.find(t => t.id === task2Id)!;
+        const f_t3 = forecasted.tasks.find(t => t.id === task3Id)!;
+
+        assert.strictEqual(f_t1.plannedStart, b0_t1_start, 'Planned start preserved for completed task');
+        assert.strictEqual(f_t1.plannedFinish, b0_t1_finish, 'Planned finish preserved for completed task');
+        assert.strictEqual(f_t1.forecastStart, '2026-09-14', 'Forecast start reflects actual');
+        assert.strictEqual(f_t1.forecastFinish, '2026-09-15', 'Forecast finish reflects actual finish');
+        assert.strictEqual(f_t1.remainingDurationDays, 0, 'Remaining duration is 0 for 100% complete');
+
+        assert.strictEqual(f_t2.plannedStart, b0_t2_start, 'Planned start preserved for in-progress task');
+        assert.strictEqual(f_t2.plannedFinish, b0_t2_finish, 'Planned finish preserved for in-progress task');
+        assert.strictEqual(f_t2.forecastStart, '2026-09-16', 'Forecast start reflects actual start');
+        assert.ok(f_t2.forecastFinish && f_t2.forecastFinish >= '2026-09-23', 'Forecast finish projected from status date forward');
+        assert.ok(f_t2.forecastFinish > f_t2.plannedFinish, 'Task 2 forecast shows slippage past planned finish');
+
+        // Unstarted task scheduled before status date must slip to status date forward
+        assert.ok(f_t3.forecastStart && f_t3.forecastStart >= '2026-09-23', 'Unstarted incomplete task forecast slips to status date forward');
+
+        // 6. REVIEW VARIANCE & REPLAN:
+        // Forecast shows slippage: f_t2.forecastFinish > f_t2.plannedFinish
+        // Project manager replans schedule to reflect recovery target (duration expanded to 5d)
+        task2.durationDays = 5;
+        const replannedSchedule = SchedulingEngine.schedule(forecasted);
+        const replanned_t2 = replannedSchedule.tasks.find(t => t.id === task2Id)!;
+
+        // Check signed variance against Baseline 0: plan has slipped +2 days
+        assert.ok(replanned_t2.variance, 'Variance calculated for Task 2');
+        assert.ok((replanned_t2.variance.finishVariance || 0) > 0, 'Task 2 has positive finish variance (days late)');
+
+        // IMMUTABILITY: Verify Baseline 0 was never altered
+        assert.strictEqual(replannedSchedule.baselines['0'].tasks[task1Id].start, b0_t1_start, 'Baseline 0 start immutable');
+        assert.strictEqual(replannedSchedule.baselines['0'].tasks[task1Id].finish, b0_t1_finish, 'Baseline 0 finish immutable');
+        assert.strictEqual(replannedSchedule.baselines['0'].tasks[task2Id].start, b0_t2_start, 'Baseline 0 start immutable');
+        assert.strictEqual(replannedSchedule.baselines['0'].tasks[task2Id].finish, b0_t2_finish, 'Baseline 0 finish immutable');
+
+        // 7. BASELINE RECOVERY: Save Baseline 1 (Replanned target)
+        SchedulingEngine.saveBaseline(replannedSchedule, '1', 'Baseline 1 - Replanned Recovery');
+        assert.ok(replannedSchedule.baselines['1'], 'Baseline 1 saved');
+        assert.strictEqual(replannedSchedule.activeBaselineId, '1');
+
+        // Reschedule against Baseline 1: variance resets to 0
+        const rescheduledB1 = SchedulingEngine.schedule(replannedSchedule);
+        const r_t2 = rescheduledB1.tasks.find(t => t.id === task2Id)!;
+        assert.strictEqual(r_t2.variance?.finishVariance, 0, 'Variance resets to 0 relative to new Baseline 1');
+
+        // Switch back to Baseline 0: full contract variance reappears (+2 days)
+        rescheduledB1.activeBaselineId = '0';
+        const recheckB0 = SchedulingEngine.schedule(rescheduledB1);
+        const recheck_t2 = recheckB0.tasks.find(t => t.id === task2Id)!;
+        assert.strictEqual(recheck_t2.variance?.finishVariance, 2, 'Full contract variance (+2 days) reappears when switching to Baseline 0');
+
+        // 8. LOSSLESS SERIALIZATION & TIMEBOX PRESENTATION ISOLATION:
+        const serialized = MarkdownAdapter.serializeProject(recheckB0, rawContent);
+        assert.ok(serialized.includes('[actualStart:: 2026-09-14]'), 'Serialized actualStart');
+        assert.ok(serialized.includes('[actualFinish:: 2026-09-15]'), 'Serialized actualFinish');
+        assert.ok(serialized.includes('statusDate: "2026-09-23"') || serialized.includes('statusDate: 2026-09-23'), 'Serialized status date');
+        assert.ok(serialized.includes('baselines:'), 'Serialized baselines block');
+
+        // Verify Timebox view strips project management metadata
+        const sampleLine = `- [x] Subsurface Utility Locating [actualStart:: 2026-09-14] [actualFinish:: 2026-09-15] 🛫 2026-09-14 📅 2026-09-15`;
+        const cleanedForTimebox = MarkdownAdapter.stripProjectMetadata(sampleLine);
+        assert.ok(!cleanedForTimebox.includes('actualStart::'), 'No actualStart in daily note');
+        assert.ok(!cleanedForTimebox.includes('actualFinish::'), 'No actualFinish in daily note');
+        assert.strictEqual(cleanedForTimebox, 'Subsurface Utility Locating');
+    });
 });

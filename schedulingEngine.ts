@@ -303,10 +303,26 @@ export class SchedulingEngine {
                 totalWorkCompleted += task.workHours * (task.percentComplete / 100);
             }
 
-            // Baseline variance comparison
-            if (project.activeBaselineId && project.baselines && project.baselines[project.activeBaselineId]) {
-                const base = project.baselines[project.activeBaselineId].tasks[task.wbsCode] 
-                    || project.baselines[project.activeBaselineId].tasks[task.id];
+        }
+
+        project.totalWorkHours = totalProjectWork;
+        project.totalCost = totalProjectCost;
+        project.overallProgressPercent = totalProjectWork > 0 
+            ? Math.round((totalWorkCompleted / totalProjectWork) * 100)
+            : 0;
+
+        // -------------------------------------------------------------
+        // STEP 7: FORECAST ENGINE (Projected Outcome from Status Date)
+        // -------------------------------------------------------------
+        this.calculateForecast(project, calendar, topoOrder, predecessorsMap);
+
+        // -------------------------------------------------------------
+        // STEP 8: BASELINE VARIANCE COMPARISON
+        // -------------------------------------------------------------
+        if (project.activeBaselineId && project.baselines && project.baselines[project.activeBaselineId]) {
+            const activeBase = project.baselines[project.activeBaselineId];
+            for (const task of project.tasks) {
+                const base = activeBase.tasks[task.wbsCode] || activeBase.tasks[task.id];
                 if (base) {
                     task.baseline = base;
 
@@ -341,17 +357,6 @@ export class SchedulingEngine {
                 }
             }
         }
-
-        project.totalWorkHours = totalProjectWork;
-        project.totalCost = totalProjectCost;
-        project.overallProgressPercent = totalProjectWork > 0 
-            ? Math.round((totalWorkCompleted / totalProjectWork) * 100)
-            : 0;
-
-        // -------------------------------------------------------------
-        // STEP 7: FORECAST ENGINE (Projected Outcome from Status Date)
-        // -------------------------------------------------------------
-        this.calculateForecast(project, calendar, topoOrder, predecessorsMap);
 
         return project;
     }
