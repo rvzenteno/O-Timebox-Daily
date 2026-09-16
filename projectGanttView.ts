@@ -5,6 +5,7 @@ import { ResourceEngine, ResourceUsageSummary } from './resourceEngine';
 import { ProjectCalendar } from './projectCalendar';
 import { ProjectCommandManager } from './projectCommandManager';
 import { MarkdownAdapter } from './markdownAdapter';
+import { ProjectSettingsModal } from './projectSettingsModal';
 import TimeBoxPlugin from './main';
 
 export const TIMEBOX_GANTT_VIEW_TYPE = 'timebox-gantt-view';
@@ -969,6 +970,21 @@ export class ProjectGanttView extends ItemView {
         setIcon(refreshBtn, 'refresh-cw');
         refreshBtn.addEventListener('click', () => {
             void this.render();
+        });
+
+        const settingsBtn = rightGroup.createEl('button', {
+            cls: 'timebox-task-icon-btn',
+            title: 'Project Settings & Calendar Configuration'
+        });
+        setIcon(settingsBtn, 'settings');
+        settingsBtn.addEventListener('click', () => {
+            new ProjectSettingsModal(
+                this.app,
+                projectData.file,
+                projectData,
+                this.projectManager,
+                () => void this.render()
+            ).open();
         });
     }
 

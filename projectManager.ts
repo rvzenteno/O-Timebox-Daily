@@ -1013,6 +1013,96 @@ created: ${getMoment().format('YYYY-MM-DD')}
     }
 
     /**
+     * Update general project settings in note frontmatter.
+     */
+    async saveProjectSettings(
+        projectFile: TFile,
+        settings: {
+            title?: string;
+            projectStartDate?: string;
+            deadline?: string;
+            scheduleMode?: 'forward' | 'backward';
+            startTaskNumber?: number;
+            activeCalendarId?: string;
+        }
+    ): Promise<void> {
+        await this.app.fileManager.processFrontMatter(projectFile, (frontmatter) => {
+            if (settings.title !== undefined) frontmatter['title'] = settings.title;
+            if (settings.projectStartDate !== undefined) frontmatter['projectStartDate'] = settings.projectStartDate;
+            if (settings.deadline !== undefined) {
+                if (settings.deadline) {
+                    frontmatter['deadline'] = settings.deadline;
+                } else {
+                    delete frontmatter['deadline'];
+                }
+            }
+            if (settings.scheduleMode !== undefined) frontmatter['scheduleMode'] = settings.scheduleMode;
+            if (settings.startTaskNumber !== undefined) {
+                frontmatter['startTaskNumber'] = settings.startTaskNumber;
+                if (settings.startTaskNumber === 2) {
+                    frontmatter['projectTitleTask'] = true;
+                } else {
+                    delete frontmatter['projectTitleTask'];
+                }
+            }
+            if (settings.activeCalendarId !== undefined) {
+                frontmatter['activeCalendarId'] = settings.activeCalendarId;
+            }
+        });
+        this.markInternalModification(projectFile.path);
+    }
+
+    /**
+     * Save calendars list to project frontmatter.
+     */
+    async saveCalendars(projectFile: TFile, calendars: any[], activeCalendarId?: string): Promise<void> {
+        await this.app.fileManager.processFrontMatter(projectFile, (frontmatter) => {
+            frontmatter['calendars'] = calendars;
+            if (activeCalendarId) {
+                frontmatter['activeCalendarId'] = activeCalendarId;
+            }
+        });
+        this.markInternalModification(projectFile.path);
+    }
+
+    /**
+     * Add or update a calendar definition in project frontmatter.
+     */
+    async saveCalendar(projectFile: TFile, calendar: any, makeActive: boolean = false): Promise<void> {
+        await this.app.fileManager.processFrontMatter(projectFile, (frontmatter) => {
+            if (!Array.isArray(frontmatter['calendars'])) {
+                frontmatter['calendars'] = [ProjectCalendar.createStandardCalendar().toDefinition()];
+            }
+            const list = frontmatter['calendars'];
+            const idx = list.findIndex((c: any) => c.id === calendar.id);
+            if (idx >= 0) {
+                list[idx] = calendar;
+            } else {
+                list.push(calendar);
+            }
+            if (makeActive) {
+                frontmatter['activeCalendarId'] = calendar.id;
+            }
+        });
+        this.markInternalModification(projectFile.path);
+    }
+
+    /**
+     * Delete a calendar from project frontmatter.
+     */
+    async deleteCalendar(projectFile: TFile, calendarId: string): Promise<void> {
+        await this.app.fileManager.processFrontMatter(projectFile, (frontmatter) => {
+            if (Array.isArray(frontmatter['calendars'])) {
+                frontmatter['calendars'] = frontmatter['calendars'].filter((c: any) => c.id !== calendarId);
+            }
+            if (frontmatter['activeCalendarId'] === calendarId) {
+                frontmatter['activeCalendarId'] = 'standard';
+            }
+        });
+        this.markInternalModification(projectFile.path);
+    }
+
+    /**
      * Update full task details (title, dates, duration, resource, predecessors, milestone) in project file.
      */
     async updateTaskDetails(

@@ -729,4 +729,91 @@ test('14. Scale Benchmark: 1,000 tasks with realistic resource assignments sched
     assert.ok(duration < 250, `1,000 tasks with 20 resources scheduled and analyzed in ${duration.toFixed(2)}ms (target < 250ms)`);
 });
 
+test('15. Project Settings: Frontmatter parsing and lossless round-trip serialization', () => {
+    const rawMarkdown = `---
+title: "Civic Transit Extension"
+projectStartDate: "2026-10-01"
+deadline: "2026-12-31"
+scheduleMode: "backward"
+startTaskNumber: 2
+activeCalendarId: "transit-calendar"
+calendars:
+  - id: "transit-calendar"
+    name: "Transit 4-Day"
+    workingDays: [1, 2, 3, 4]
+    hoursPerDay: 10
+    holidays: ["2026-10-12"]
+---
+
+# Civic Transit Extension
+
+- [ ] Route Surveying 🛫 2026-10-01 ⏳ 3d
+`;
+
+    const project = MarkdownAdapter.parseProject('Transit.md', 'Transit', rawMarkdown);
+    assert.strictEqual(project.name, 'Civic Transit Extension');
+    assert.strictEqual(project.projectStartDate, '2026-10-01');
+    assert.strictEqual(project.projectDeadline, '2026-12-31');
+    assert.strictEqual(project.schedulingDirection, 'backward');
+    assert.strictEqual(project.startTaskNumber, 2);
+    assert.strictEqual(project.activeCalendarId, 'transit-calendar');
+    assert.strictEqual(project.calendars.length, 1);
+    assert.deepStrictEqual(project.calendars[0].workingDays, [1, 2, 3, 4]);
+    assert.strictEqual(project.calendars[0].hoursPerDay, 10);
+    assert.deepStrictEqual(project.calendars[0].holidays, ['2026-10-12']);
+
+    // Round-trip serialization
+    const serialized = MarkdownAdapter.serializeProject(project, rawMarkdown);
+    assert.ok(serialized.includes('Civic Transit Extension'));
+    assert.ok(serialized.includes('projectStartDate: 2026-10-01') || serialized.includes('projectStartDate: "2026-10-01"'));
+    assert.ok(serialized.includes('activeCalendarId: transit-calendar') || serialized.includes('activeCalendarId: "transit-calendar"'));
+
+    // Re-parse
+    const reloaded = MarkdownAdapter.parseProject('Transit.md', 'Transit', serialized);
+    assert.strictEqual(reloaded.name, 'Civic Transit Extension');
+    assert.strictEqual(reloaded.activeCalendarId, 'transit-calendar');
+    assert.strictEqual(reloaded.calendars[0].hoursPerDay, 10);
+});
+
+test('16. Calendar Engine: 4-day working week, custom hours, holidays, and working exception calculations', () => {
+    const rawMarkdown = `---
+title: "Four Day Project"
+projectStartDate: "2026-10-01"
+activeCalendarId: "four-day"
+calendars:
+  - id: "four-day"
+    name: "Four Day 10h"
+    workingDays: [1, 2, 3, 4]
+    hoursPerDay: 10
+    holidays: ["2026-10-05"]
+    exceptions:
+      - date: "2026-10-09"
+        isWorking: true
+        name: "Friday Overtime"
+---
+
+- [ ] Task Alpha 🛫 2026-10-01 ⏳ 2d
+`;
+
+    const project = MarkdownAdapter.parseProject('FourDay.md', 'FourDay', rawMarkdown);
+    const scheduled = SchedulingEngine.schedule(project);
+
+    // 2026-10-01 is a Thursday (working day 4) -> Day 1
+    // Friday 2026-10-02 is NOT a working day in this calendar
+    // Saturday & Sunday are non-working
+    // Monday 2026-10-05 is a holiday
+    // Tuesday 2026-10-06 (working day 2) -> Day 2 (Finish date!)
+    const task = scheduled.tasks[0];
+    assert.strictEqual(task.calculatedStart, '2026-10-01');
+    assert.strictEqual(task.calculatedFinish, '2026-10-06');
+    assert.strictEqual(task.workHours, 20); // 2 days * 10h/day = 20h
+
+    // Verify exception: Friday 2026-10-09 is marked as isWorking: true (overtime)
+    const cal = ProjectCalendar.fromDefinition(project.calendars[0]);
+    assert.strictEqual(cal.isWorkingDay('2026-10-02'), false, 'Normal Friday is non-working');
+    assert.strictEqual(cal.isWorkingDay('2026-10-05'), false, 'Holiday Monday is non-working');
+    assert.strictEqual(cal.isWorkingDay('2026-10-09'), true, 'Exception Friday is working');
+});
+
+
 

@@ -6,6 +6,7 @@ import {
     ConstraintType,
     ResourceAssignment,
     CalendarDefinition,
+    CalendarException,
     ProjectBaseline,
     ResourceDefinition
 } from './projectModel';
@@ -68,10 +69,43 @@ export class MarkdownAdapter {
         const schedulingDirection = frontmatter['scheduleMode'] === 'backward' ? 'backward' : 'forward';
 
         // Calendars
-        const calendars: CalendarDefinition[] = Array.isArray(frontmatter['calendars']) && frontmatter['calendars'].length > 0
+        const rawCalendars = Array.isArray(frontmatter['calendars']) && frontmatter['calendars'].length > 0
             ? frontmatter['calendars']
             : [ProjectCalendar.createStandardCalendar().toDefinition()];
-        const activeCalendarId = calendars[0].id;
+
+        const calendars: CalendarDefinition[] = rawCalendars.map((c: any) => {
+            let workingDays: number[] = [1, 2, 3, 4, 5];
+            if (Array.isArray(c.workingDays)) {
+                workingDays = c.workingDays.map(Number).filter((n: number) => !isNaN(n));
+            } else if (typeof c.workingDays === 'string') {
+                workingDays = c.workingDays.replace(/[\[\]]/g, '').split(',').map((s: string) => parseInt(s.trim(), 10)).filter((n: number) => !isNaN(n));
+            }
+            let holidays: string[] = [];
+            if (Array.isArray(c.holidays)) {
+                holidays = c.holidays.map(String);
+            } else if (typeof c.holidays === 'string') {
+                holidays = c.holidays.replace(/[\[\]'"]/g, '').split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+            }
+            let exceptions: CalendarException[] = [];
+            if (Array.isArray(c.exceptions)) {
+                exceptions = c.exceptions.map((ex: any) => ({
+                    date: String(ex.date),
+                    isWorking: Boolean(ex.isWorking),
+                    name: ex.name ? String(ex.name) : undefined
+                }));
+            }
+            const hours = typeof c.hoursPerDay === 'number' ? c.hoursPerDay : (parseFloat(c.hoursPerDay) || 8);
+            return {
+                id: String(c.id || 'standard'),
+                name: String(c.name || 'Standard'),
+                workingDays,
+                hoursPerDay: isNaN(hours) ? 8 : hours,
+                holidays,
+                exceptions
+            };
+        });
+
+        const activeCalendarId = frontmatter['activeCalendarId'] || calendars[0].id;
 
         // Resources
         const resources: ResourceDefinition[] = Array.isArray(frontmatter['resources'])
@@ -170,7 +204,7 @@ export class MarkdownAdapter {
 
         const project: NormalizedProject = {
             id: filePath,
-            name: fileName.replace(/\.md$/, ''),
+            name: (typeof frontmatter['title'] === 'string' && frontmatter['title']) ? frontmatter['title'] : fileName.replace(/\.md$/, ''),
             filePath,
             tasks: rawTasks,
             taskMap,
@@ -181,7 +215,9 @@ export class MarkdownAdapter {
             baselines,
             activeBaselineId,
             schedulingDirection,
-            projectStartDate: rawTasks[0]?.userStart || new Date().toISOString().slice(0, 10),
+            projectStartDate: (typeof frontmatter['projectStartDate'] === 'string' && frontmatter['projectStartDate']) 
+                ? frontmatter['projectStartDate'] 
+                : (rawTasks[0]?.userStart || new Date().toISOString().slice(0, 10)),
             projectFinishDate: rawTasks[rawTasks.length - 1]?.userFinish || rawTasks[0]?.userStart || new Date().toISOString().slice(0, 10),
             projectDeadline,
             startTaskNumber,
@@ -205,6 +241,11 @@ export class MarkdownAdapter {
         if (val === 'true') return true;
         if (val === 'false') return false;
         if (!isNaN(Number(val)) && val !== '') return Number(val);
+        if (val.startsWith('[') && val.endsWith(']')) {
+            const inner = val.slice(1, -1).trim();
+            if (!inner) return [];
+            return inner.split(',').map(s => this.parseScalar(s.trim()));
+        }
         return val.replace(/^['"](.*)['"]$/, '$1');
     }
 
@@ -645,6 +686,127 @@ export class MarkdownAdapter {
     }
 
     /**
+     * Format a scalar or array value for safe YAML frontmatter emission.
+     */
+    private static formatYamlValue(val: any): string {
+        if (typeof val === 'string') {
+            if (val.includes(':') || val.includes('#') || val.includes('[') || val.includes('{') || val.includes('"') || val === '') {
+                return JSON.stringify(val);
+            }
+            return val;
+        }
+        if (Array.isArray(val)) {
+            return `[${val.map(v => this.formatYamlValue(v)).join(', ')}]`;
+        }
+        return String(val);
+    }
+
+    /**
+     * Surgically update frontmatter keys in markdown content without disturbing formatting or unrelated keys.
+     * Returns the updated content along with the line delta introduced by frontmatter expansion or contraction.
+     */
+    static updateFrontmatterInContent(content: string, updates: Record<string, any>): { content: string; lineDelta: number; fmEndIndex: number } {
+        const lines = content.split('\n');
+        let fmStartIndex = -1;
+        let fmEndIndex = -1;
+
+        if (lines[0]?.trim() === '---') {
+            fmStartIndex = 0;
+            for (let i = 1; i < lines.length; i++) {
+                if (lines[i]?.trim() === '---') {
+                    fmEndIndex = i;
+                    break;
+                }
+            }
+        }
+
+        const { frontmatter } = this.parseFrontmatter(content, lines);
+
+        // Check if updates actually change anything
+        let hasChanges = false;
+        for (const [k, v] of Object.entries(updates)) {
+            if (JSON.stringify(frontmatter[k]) !== JSON.stringify(v)) {
+                hasChanges = true;
+                break;
+            }
+        }
+
+        if (!hasChanges) {
+            return { content, lineDelta: 0, fmEndIndex };
+        }
+
+        const merged = { ...frontmatter };
+
+        // Apply updates
+        for (const [k, v] of Object.entries(updates)) {
+            if (v === undefined || v === null || v === '') {
+                delete merged[k];
+            } else {
+                merged[k] = v;
+            }
+        }
+
+        // Serialize YAML block
+        const fmLines: string[] = ['---'];
+        for (const [key, val] of Object.entries(merged)) {
+            if (val === undefined || val === null) continue;
+            if (Array.isArray(val)) {
+                if (val.length === 0) {
+                    fmLines.push(`${key}: []`);
+                } else if (typeof val[0] === 'object' && val[0] !== null) {
+                    fmLines.push(`${key}:`);
+                    for (const item of val) {
+                        const entries = Object.entries(item);
+                        if (entries.length > 0) {
+                            const [firstK, firstV] = entries[0];
+                            fmLines.push(`  - ${firstK}: ${this.formatYamlValue(firstV)}`);
+                            for (let j = 1; j < entries.length; j++) {
+                                const [subK, subV] = entries[j];
+                                fmLines.push(`    ${subK}: ${this.formatYamlValue(subV)}`);
+                            }
+                        }
+                    }
+                } else {
+                    fmLines.push(`${key}: [${val.map(v => this.formatYamlValue(v)).join(', ')}]`);
+                }
+            } else if (typeof val === 'object') {
+                fmLines.push(`${key}:`);
+                for (const [subKey, subVal] of Object.entries(val)) {
+                    if (typeof subVal === 'object' && subVal !== null && !Array.isArray(subVal)) {
+                        fmLines.push(`  ${subKey}:`);
+                        for (const [leafK, leafV] of Object.entries(subVal)) {
+                            fmLines.push(`    ${leafK}: ${this.formatYamlValue(leafV)}`);
+                        }
+                    } else {
+                        fmLines.push(`  ${subKey}: ${this.formatYamlValue(subVal)}`);
+                    }
+                }
+            } else {
+                fmLines.push(`${key}: ${this.formatYamlValue(val)}`);
+            }
+        }
+        fmLines.push('---');
+
+        if (fmStartIndex === 0 && fmEndIndex > 0) {
+            const oldFmCount = fmEndIndex + 1;
+            const newFmCount = fmLines.length;
+            const lineDelta = newFmCount - oldFmCount;
+            const body = lines.slice(fmEndIndex + 1);
+            return {
+                content: [...fmLines, ...body].join('\n'),
+                lineDelta,
+                fmEndIndex
+            };
+        } else {
+            return {
+                content: [...fmLines, ...lines].join('\n'),
+                lineDelta: fmLines.length,
+                fmEndIndex: -1
+            };
+        }
+    }
+
+    /**
      * Serialize an entire NormalizedProject into Markdown.
      * If rawContent is provided (or stored on project), performs non-destructive line updates
      * preserving all existing frontmatter, headers, prose, wikilinks, tags, and non-task text.
@@ -652,10 +814,26 @@ export class MarkdownAdapter {
     static serializeProject(project: NormalizedProject, rawContent?: string): string {
         const baseContent = rawContent || (project as any).rawContent;
         if (baseContent) {
-            const lines = baseContent.split('\n');
+            const updates: Record<string, any> = {};
+            if (project.name) updates['title'] = project.name;
+            if (project.projectStartDate) updates['projectStartDate'] = project.projectStartDate;
+            if (project.projectDeadline) updates['deadline'] = project.projectDeadline;
+            if (project.schedulingDirection) updates['scheduleMode'] = project.schedulingDirection;
+            if (project.startTaskNumber) updates['startTaskNumber'] = project.startTaskNumber;
+            if (project.activeCalendarId) updates['activeCalendarId'] = project.activeCalendarId;
+            if (project.calendars && project.calendars.length > 0) updates['calendars'] = project.calendars;
+            if (project.resources && project.resources.length > 0) updates['resources'] = project.resources;
+            if (project.baselines && Object.keys(project.baselines).length > 0) updates['baselines'] = project.baselines;
+            if (project.activeBaselineId) updates['activeBaselineId'] = project.activeBaselineId;
+
+            const fmResult = this.updateFrontmatterInContent(baseContent, updates);
+            const lines = fmResult.content.split('\n');
             for (const task of project.tasks) {
-                if (task.lineIndex >= 0 && task.lineIndex < lines.length) {
-                    lines[task.lineIndex] = this.serializeTaskLine(task, project);
+                const targetIndex = (fmResult.fmEndIndex >= 0 && task.lineIndex > fmResult.fmEndIndex)
+                    ? task.lineIndex + fmResult.lineDelta
+                    : task.lineIndex;
+                if (targetIndex >= 0 && targetIndex < lines.length) {
+                    lines[targetIndex] = this.serializeTaskLine(task, project);
                 }
             }
             return lines.join('\n');
@@ -667,6 +845,8 @@ export class MarkdownAdapter {
         lines.push(`title: ${project.name}`);
         if (project.projectStartDate) lines.push(`projectStartDate: ${project.projectStartDate}`);
         if (project.projectDeadline) lines.push(`deadline: ${project.projectDeadline}`);
+        if (project.schedulingDirection) lines.push(`scheduleMode: ${project.schedulingDirection}`);
+        if (project.activeCalendarId) lines.push(`activeCalendarId: ${project.activeCalendarId}`);
         lines.push('---');
         lines.push('');
         lines.push(`# ${project.name}`);
