@@ -12,12 +12,16 @@ TimeBox Daily creates a consistent daily planning system inside your vault using
 TimeBox Daily helps you:
 
 - **📊 Professional Microsoft Project / ProjectLibre Suite**:
-  - **5 Native PM Views**: Seamlessly switch between **Gantt Chart**, **Task Sheet** (full spreadsheet), **Resource Sheet**, **Resource Usage** (daily workload heatmap), and **Project Summary** (KPI cards & critical path).
+  - **5 Native PM Views**: Seamlessly switch between **Gantt Chart**, **Task Sheet** (customizable spreadsheet with column selector), **Resource Sheet**, **Resource Usage** (daily workload heatmap), and **Project Summary** (KPI cards & critical path).
+  - **Execution Tracking & 4-State Semantic Model**: Strict isolation of **Baseline** ➔ **Current Plan** ➔ **Actual Execution** ➔ **Forecast**. Actuals record historical truth without silently destroying planned dates.
+  - **Status Date & Forecast Engine**: Configurable Status Date (independent of "Today") with vertical Gantt marker, tracking actuals (`[actualStart::]`, `[actualFinish::]`, `[actualWork::]`), and projecting forward outcomes and remaining work.
+  - **Multi-Baseline Management (0–10)**: Snapshot schedules into versioned baselines (`Baseline 0`..`10`), toggle baselines on the fly, and inspect signed variance (+ late / - early) for start, finish, duration, work, and cost.
+  - **Project Settings & Custom Calendars**: Configure project start/deadline, forward/backward scheduling direction, custom 4-day working weeks, custom daily hours, holidays, and calendar exceptions.
+  - **Customizable Task Sheet**: Dynamic Column Visibility modal with 18 configurable columns across Core, Baseline & Variance, Execution & Actuals, and Advanced Scheduling categories, with view presets and separate UI preference persistence.
   - **2-Pass CPM Engine**: Automatic forward and backward pass calculating Early/Late dates, Total Float, Free Float, and real-time Critical Path highlighting (`⚡ Critical Path`).
   - **First-Class Dependencies**: Support for `FS`, `SS`, `FF`, and `SF` relationships with lead and lag durations (e.g. `1FS+2d`, `2SS-1d`).
   - **Resource Management & Workload**: Clear separation of **Duration** vs **Work** (`Work = Duration × Units × 8h`), with automatic detection of concurrent task conflicts and over-allocations.
   - **Calendar Engine & Weekend Splits**: Excludes non-working days/holidays and automatically splits bars over weekends with dashed connector lines.
-  - **Baseline Versioning & Variance**: Snapshot schedules into `Baseline 0`, `Baseline 1`, etc., with ghost comparison bars rendered underneath active tasks.
   - **Lossless Markdown Adapter & Undo/Redo**: All PM metadata syncs directly to Obsidian Markdown without overwriting user comments, tags, or formatting, backed by full Undo/Redo (`Ctrl+Z` / `Ctrl+Y`).
 - **Multi-Project Tracking & Sidebar Dashboard**: Track projects with visual progress bars and backlogs inside dedicated project notes (`TimeBox/Projects/`) and a custom right-sidebar dashboard view.
 - **🗂 Collapsible Project Dashboard Cards**: Click project card headers in the sidebar dashboard to collapse or expand project tasks and focus on one project at a time.

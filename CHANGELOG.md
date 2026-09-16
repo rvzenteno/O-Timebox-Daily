@@ -1,5 +1,36 @@
 # Changelog - TimeBox Daily
 
+## [1.5.0] - 2026-09-16
+
+### Added & Major Execution Tracking Upgrade
+- 🎛 **Phase 1 — Project Settings & Calendar Management**:
+  - `ProjectSettingsModal` for configuring Project Start Date, Project Deadline, Scheduling Direction (Forward from Start vs Backward from Deadline), and Active Calendar.
+  - `CalendarManagerModal` for defining multiple project calendars with custom working days (e.g. Mon–Thu for 4-day weeks), custom daily working hours (e.g. 10h/day), holidays (`holidays: []`), and individual calendar exceptions (`exceptions: [{ date, isWorking, name }]`).
+  - Lossless YAML frontmatter persistence across all settings and calendar definitions.
+- 📊 **Phase 2 — Multi-Baseline Management & Signed Variance Math**:
+  - Full support for `Baseline 0` through `Baseline 10` snapshots.
+  - Baseline selector dropdown in Gantt toolbar for on-the-fly comparison against different project stages (Contract Approval, Revised Target, Mid-Project Replan).
+  - Baseline immutability: snapshots are permanently frozen in frontmatter and never mutated when the active project schedule changes.
+  - Standard signed variance metrics: `startVariance` (+ late / - early), `finishVariance` (+ late / - early), `durationVariance`, `workVariance`, and `costVariance`.
+- ⏱ **Phase 3 — Status Date, Execution Actuals & Forecast Engine**:
+  - Dedicated configurable `statusDate` in project frontmatter, independent of "Today", with a prominent vertical marker line on the Gantt canvas.
+  - Empirical execution actuals tracking: `actualStart`, `actualFinish`, `actualWork`, `actualDuration` via Markdown inline tokens (`[actualStart:: YYYY-MM-DD]`, `[actualFinish:: YYYY-MM-DD]`, `[actualWork:: Nh]`).
+  - **Strict 4-State Architectural Separation**:
+    $$\text{Baseline} \longrightarrow \text{Current Planned Schedule} \longrightarrow \text{Actual Execution} \longrightarrow \text{Forecast}$$
+    Actuals represent historical truth and never overwrite user-entered planned dates or baselines.
+  - 6-scenario forecast projection engine calculating projected finish, remaining duration, and remaining work anchored from the Status Date forward while respecting topological dependency networks.
+- 📋 **Phase 4 — Task Sheet Customization & Column Visibility**:
+  - Interactive `ColumnVisibilityModal` with 18 configurable columns organized into 4 logical categories:
+    - **Core**: WBS, Title, Duration, Start, Finish, % Complete, Predecessors, Resources.
+    - **Baseline & Variance**: Baseline Start, Baseline Finish, Start Variance, Finish Variance, Work Variance.
+    - **Execution & Actuals**: Status, Actual Start, Actual Finish, Actual Work, Remaining Work.
+    - **Advanced Scheduling**: Total Float.
+  - One-click presets: *Default*, *Tracking & Variance*, *Execution Actuals*, and *All Columns*.
+  - UI column preferences persisted separately in plugin settings, keeping project Markdown files strictly clean of view-level state.
+- 🛡 **Phase 5 — Full Project Controls Lifecycle Verification**:
+  - Validated against the 55-task realistic commercial buildout fixture across the complete project lifecycle: `Plan → Baseline → Execute → Enter Actuals → Change Status Date → Forecast → Review Variance → Replan`.
+  - 100% test pass rate across 19 unit & regression tests and 14 end-to-end integration tests.
+
 ## [1.4.0] - 2026-09-15
 
 ### Added & Major Architectural Upgrade

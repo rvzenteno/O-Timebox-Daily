@@ -65,14 +65,14 @@ To maintain system stability, performance, and user ergonomics, a clear architec
 | **Task Priorities** | Priority weighting (100–1000) | **Implemented** | Supported via `[priority:: 500]`; preserved across edits. |
 | **Task Status** | Not Started, In Progress, Complete, Blocked | **Implemented** | Blocked status determined when predecessors are incomplete. |
 | **Percent Complete (% Complete)**| Progress tracking | **Implemented** | `[%:: N]` token; rollups compute weighted progress to parent summaries. |
-| **Actual Start / Finish** | Tracking execution dates | **Partially implemented**| Model properties `actualStart`/`actualFinish` exist; edited via task modal. |
-| **Actual Work** | Actual hours expended | **Partially implemented**| Calculated proportionally from % complete and total work hours. |
+| **Actual Start / Finish** | Tracking execution dates | **Implemented (v1.5)**| Dedicated tokens `[actualStart::]`/`[actualFinish::]`; strictly isolated from planned schedule and baseline. |
+| **Actual Work** | Actual hours expended | **Implemented (v1.5)**| Dedicated token `[actualWork:: Nh]`; tracks actual expended work and remaining work from status date forward. |
 
 ---
 
 ### 3. Resource Management
 
-| Feature | MS Project / ProjectLibre Equivalent | Timebox 1.4.0 Status | Technical Implementation & Notes |
+| Feature | MS Project / ProjectLibre Equivalent | Timebox Status | Technical Implementation & Notes |
 | :--- | :--- | :---: | :--- |
 | **Work Resources** | People / labor resources | **Implemented** | Full support with hourly rates, working hours per day, and capacity units. |
 | **Material Resources** | Consumable materials | **Implemented** | Type `Material` with unit cost per use; 0 work hours. |
@@ -85,18 +85,18 @@ To maintain system stability, performance, and user ergonomics, a clear architec
 | **Resource Assignments** | Assigning resources to tasks | **Implemented** | Managed via UI modal, task sheet, or inline Markdown syntax. |
 | **Over-Allocation Detection**| Identifying resource over-scheduling | **Implemented** | Daily allocation aggregation flags any day exceeding resource capacity. |
 | **Resource Usage Grid** | Time-phased work/capacity matrix | **Implemented** | Interactive time-phased grid with date navigation, expandable task sub-rows. |
-| **Resource Leveling** | Automated conflict resolution | **Planned** | Manual date adjustments supported; automated heuristic leveling planned for v1.5. |
+| **Resource Leveling** | Automated conflict resolution | **Planned** | Manual date adjustments supported; automated heuristic leveling planned for v1.6. |
 
 ---
 
 ### 4. Tracking & Baselines
 
-| Feature | MS Project / ProjectLibre Equivalent | Timebox 1.4.0 Status | Technical Implementation & Notes |
+| Feature | MS Project / ProjectLibre Equivalent | Timebox Status | Technical Implementation & Notes |
 | :--- | :--- | :---: | :--- |
 | **Baseline Snapshot** | Saving frozen project schedule | **Implemented** | Captures snapshot of start, finish, duration, work, and cost into frontmatter. |
-| **Multiple Baselines** | Versioned baselines (Baseline 0–10) | **Implemented** | Dictionary keyed by baseline ID (`baselines: { "0": { ... } }`). |
-| **Variance Calculation** | Current vs baseline differences | **Implemented** | Computes startVariance, finishVariance, durationVariance, workVariance, costVariance. |
-| **Status Date Tracking** | Progress evaluation as of date | **Partially implemented**| Gantt displays "Today" indicator line; arbitrary status date picker planned for v1.5. |
+| **Multiple Baselines** | Versioned baselines (Baseline 0–10) | **Implemented (v1.5)**| Multi-baseline manager (Baseline 0..10) with selector dropdown, immutability, and YAML persistence. |
+| **Variance Calculation** | Current vs baseline differences | **Implemented (v1.5)**| Signed variance math for start, finish, duration, work, and cost variances. |
+| **Status Date Tracking** | Progress evaluation as of date | **Implemented (v1.5)**| Configurable status date in frontmatter; dedicated Gantt marker; forecast projections anchored from status date. |
 | **Actual vs Planned Display**| Baseline comparison bars | **Implemented** | Renders secondary hatched baseline bars directly below active Gantt bars. |
 | **Progress Tracking** | Progress fill overlays | **Implemented** | Visual progress fills on task bars and summary progress bars in summary dashboard. |
 
@@ -104,10 +104,10 @@ To maintain system stability, performance, and user ergonomics, a clear architec
 
 ### 5. Views & Interface
 
-| Feature | MS Project / ProjectLibre Equivalent | Timebox 1.4.0 Status | Technical Implementation & Notes |
+| Feature | MS Project / ProjectLibre Equivalent | Timebox Status | Technical Implementation & Notes |
 | :--- | :--- | :---: | :--- |
-| **Gantt Chart** | Interactive timeline with bars | **Implemented** | SVG canvas, drag-to-move, drag-to-resize, zoom levels (Day/Week/Month), split weekends. |
-| **Task Sheet** | Tabular task grid with columns | **Implemented** | Inline editing for WBS, Title, Duration, Start, Finish, Predecessors, Resources, %. |
+| **Gantt Chart** | Interactive timeline with bars | **Implemented** | SVG canvas, drag-to-move, drag-to-resize, zoom levels (Day/Week/Month), status date line, baseline comparison. |
+| **Task Sheet** | Tabular task grid with columns | **Implemented (v1.5)**| Dynamic column visibility modal with 18 configurable columns across 4 categories and separate preference persistence. |
 | **Resource Sheet** | Resource directory and metrics | **Implemented** | CRUD management, capacity, rates, total work, peak utilization, conflict badges. |
 | **Resource Usage View** | Time-phased resource workload | **Implemented** | Grid view with daily hours, utilization percentages, and task allocation breakdowns. |
 | **Project Summary** | Executive project dashboard | **Implemented** | Dynamic KPI cards (Dates, Duration, Work, Cost, Critical Path, Milestones, Float). |
