@@ -16,10 +16,20 @@
 - 📅 **Calendar Engine & Working Day Calculation**:
   - Working days, working hours per day, holidays, and custom date exceptions.
   - Weekend split rendering on Gantt charts with dashed bridge connectors.
-- 👥 **Resource Management, Workload & Over-Allocation Detection**:
-  - Clear separation of **Duration** vs **Work** (`Work = Duration × Units × 8h`).
-  - Time-phased daily allocation matrix tracking peak allocation per team member.
-  - Automatic detection and visual alerts for concurrent task conflicts and resource over-allocations (> 100% capacity / > 8h/day).
+- 👥 **Functional Resource Sheet & Persistence**:
+  - Full CRUD and persistence in project note frontmatter (`resources: []`).
+  - Supports resource types (`Work`, `Material`, `Cost`), capacity units, custom working hours/day (part-time, flexible), hourly rates, cost per use, and resource-specific calendar assignments.
+  - Interactive resource management modal (`+ Add Resource`, `Edit`, `Assign`, `Delete`) and task assignment modal (`Assign to Task`).
+- ⏱ **Calendar-Aware Resource Calculations & Time-Phased Usage**:
+  - Eliminates hardcoded 8-hour assumptions: daily capacity and work dynamically derive from the resource's working hours and applicable calendar.
+  - Interactive **Resource Usage Matrix**: full time-phased grid (`Resource ➔ Date ➔ Assigned Tasks ➔ Work ➔ Capacity ➔ Utilization %`) with timeline navigation (`◀ Prev Week`, `Today`, `Next Week ▶`), expandable task child rows, weekend shading, and red over-allocation indicators.
+- 📈 **Dynamic Project Summary Dashboard**:
+  - Dynamically calculates all project KPIs directly from the normalized project model (Start/Finish dates, duration, % complete, remaining tasks, total work, total cost, critical path sequence, and milestones).
+  - Clickable KPI cards and critical path items jump directly to tasks in the Gantt workspace.
+- 🛡 **Presentation Boundary Isolation & Clean Timebox Experience**:
+  - Architectural separation (not CSS hiding) ensures normal Timebox views, daily notes, and reading mode render clean task titles (e.g. `☐ Concept Design`) without Project Management token pollution (`🛫`, `📅`, `⏳`, `dependsOn`, `@Resource`).
+  - Underlying project Markdown losslessly preserves all metadata tokens.
+  - Root-cause fix for duplicate checkboxes (`- [ ] - [ ]`) and clean bidirectional checkbox synchronization (`- [ ]` ↔ `- [x]`).
 - 📊 **Versioned Baselines & Variance Tracking**:
   - Snapshot schedules into versioned baselines (`Baseline 0`, `Baseline 1`, etc.).
   - Gantt baseline comparison ghost bars rendering original planned timeline underneath current tasks.
@@ -27,17 +37,11 @@
   - Kahn's topological sort for circular dependency detection with cycle path traces.
   - Detects duplicate task IDs, missing predecessor references, invalid constraints, and deadline violations.
   - Collapsible validation alert banner surfacing actionable issues in the UI.
-- 🖥 **5 Professional Project Management Views**:
-  - **Gantt Chart**: Split-pane workspace with WBS tree, draggable splitter, interactive timeline bars, summary brackets, milestone diamonds, and dependency connector arrows.
-  - **Task Sheet**: Full-featured tabular spreadsheet with WBS codes, checkboxes, dates, duration, work hours, total float, free float, predecessors, resources, and % complete.
-  - **Resource Sheet**: Team directory with capacity units, total work hours, peak allocation, and over-allocation status badges.
-  - **Resource Usage**: Time-phased daily workload heatmap highlighting conflict days in bright red.
-  - **Project Summary**: Executive dashboard with overall progress bar, 4 KPI metric cards (Schedule, Tasks & Work, Critical Path, Baseline Tracking), critical path sequence, and milestones list.
 - ⏪ **Universal Undo / Redo Command Stack**:
   - Designed into the command layer (`Ctrl+Z` / `Ctrl+Y`, toolbar buttons) for moving tasks, duration resizing, dependency modifications, indentation changes, and baseline snapshots.
-- 🚀 **High Performance & Benchmark Test Suite**:
-  - Benchmarked to schedule 1,000 tasks in ~11ms (< 100ms threshold).
-  - Automated Node.js test suite with 8 integration scenarios covering Kahn cycle detection, 20-task multi-level WBS projects, calendar stepping, resource matrices, baseline snapshots, and lossless round-tripping.
+- 🚀 **Expanded 14-Scenario Integration & Benchmark Test Suite**:
+  - Benchmarked to schedule 1,000 tasks and analyze 20 resource allocations in ~13ms (< 250ms threshold).
+  - 14 automated Node.js unit tests covering Kahn cycle detection, 20-task multi-level WBS scheduling, calendar stepping, resource CRUD, non-8h calculations, time-phased matrices, presentation isolation, duplicate checkbox prevention, and lossless round-tripping.
 
 ---
 

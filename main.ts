@@ -64,6 +64,25 @@ export default class TimeBoxPlugin extends Plugin {
             (leaf) => new ProjectGanttView(leaf, this)
         );
 
+        // Register presentation post-processor to keep normal Timebox daily note task display clean
+        this.registerMarkdownPostProcessor((element, context) => {
+            const isDaily = context.sourcePath.startsWith(this.settings.timeBoxFolder);
+            if (!isDaily) return;
+
+            const taskItems = element.querySelectorAll('li.task-list-item');
+            taskItems.forEach((li) => {
+                for (let i = 0; i < li.childNodes.length; i++) {
+                    const node = li.childNodes[i];
+                    if (node.nodeType === Node.TEXT_NODE && node.nodeValue) {
+                        const cleaned = ProjectManager.stripProjectMetadata(node.nodeValue);
+                        if (cleaned !== node.nodeValue) {
+                            node.nodeValue = cleaned ? ` ${cleaned} ` : '';
+                        }
+                    }
+                }
+            });
+        });
+
         // Add ribbon icon for today's timebox
         this.addRibbonIcon('calendar-clock', 'Open today\'s timebox', async () => {
             await this.openTimeBoxForDate(getMoment());
@@ -475,12 +494,12 @@ export default class TimeBoxPlugin extends Plugin {
 
         const modal = new ProjectSuggestModal(this.app, projectFiles, (selectedProject) => {
             void (async () => {
-                const cleanedText = lineText.replace(/^-\s*\[[ xX]\]\s*/, '');
+                const cleanedText = ProjectManager.stripTaskCheckbox(lineText);
                 const updatedLine = lineText.includes('[[')
                     ? lineText
                     : lineText.startsWith('-')
                     ? `${lineText} [[${selectedProject.basename}]]`
-                    : `- [ ] ${lineText} [[${selectedProject.basename}]]`;
+                    : `- [ ] ${cleanedText} [[${selectedProject.basename}]]`;
 
                 editor.setLine(cursor.line, updatedLine);
                 await this.projectManager.addTaskToProject(selectedProject, cleanedText, true);

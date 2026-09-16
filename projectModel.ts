@@ -38,12 +38,18 @@ export interface ResourceAssignment {
     workHours?: number; // Work = Duration * Units * HoursPerDay
 }
 
+export type ResourceType = 'Work' | 'Material' | 'Cost';
+
 export interface ResourceDefinition {
     id: string;
     name: string;
-    maxUnits: number;       // e.g. 1.0 (100%)
-    ratePerHour?: number;   // Cost rate per hour
-    calendarId?: string;    // Resource-specific calendar override
+    type?: ResourceType;        // 'Work' | 'Material' | 'Cost' (default: 'Work')
+    maxUnits: number;           // e.g. 1.0 (100%), 0.5 (50% part-time)
+    workingHoursPerDay?: number;// Resource daily working hours (e.g. 8h, or 4h for part-time)
+    ratePerHour?: number;       // Cost rate per hour
+    costPerUse?: number;        // One-time or material unit cost
+    calendarId?: string;        // Resource-specific calendar override
+    notes?: string;
 }
 
 export interface TaskBaseline {

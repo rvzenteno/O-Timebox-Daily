@@ -1,5 +1,5 @@
 import { App, TFile, TFolder, Notice, Editor, moment } from 'obsidian';
-import { NormalizedProject, NormalizedTask, ProjectBaseline } from './projectModel';
+import { NormalizedProject, NormalizedTask, ProjectBaseline, ResourceDefinition } from './projectModel';
 import { MarkdownAdapter } from './markdownAdapter';
 import { SchedulingEngine } from './schedulingEngine';
 import { ProjectValidator } from './projectValidator';
@@ -179,6 +179,21 @@ export class ProjectManager {
     }
 
     /**
+     * Strip any checklist markdown prefix (including callout quote bars) to prevent '- [ ] - [ ]'.
+     */
+    static stripTaskCheckbox(text: string): string {
+        return MarkdownAdapter.stripTaskCheckbox(text);
+    }
+
+    /**
+     * Clean presentation boundary: strips PM-specific scheduling tokens from a task string.
+     * Preserves task title and Timebox wikilinks (e.g. [[Project]]).
+     */
+    static stripProjectMetadata(text: string): string {
+        return MarkdownAdapter.stripProjectMetadata(text);
+    }
+
+    /**
      * Parse start and due dates, duration, milestone flag, resource, predecessors, and clean title.
      */
     parseTaskDates(text: string): {
@@ -202,7 +217,7 @@ export class ProjectManager {
         const descMatch = text.match(/\[desc::\s*([^\]]+)\]/i) || text.match(/📝\s*([^\n🛫📅⏳@#\[]+)/);
         const description = descMatch ? descMatch[1].trim() : undefined;
 
-        const predMatch = text.match(/dependsOn::\s*#?([0-9.,\s#]+)/i) || text.match(/after:\s*#?([0-9.,\s#]+)/i);
+        const predMatch = text.match(/dependsOn::\s*#?([0-9a-zA-Z.,_+\-\s#]+)/i) || text.match(/after:\s*#?([0-9a-zA-Z.,_+\-\s#]+)/i);
         const predecessors: string[] = [];
         if (predMatch && predMatch[1]) {
             const items = predMatch[1].split(',').map(s => s.replace(/#/g, '').trim()).filter(s => s.length > 0);
@@ -211,22 +226,7 @@ export class ProjectManager {
 
         const startDate = startMatch ? startMatch[1] : undefined;
         let dueDate = dueMatch ? dueMatch[1] : undefined;
-
-        const cleanTitle = text
-            .replace(/^(\s*-\s*\[[ xX]\]\s*)+/g, '')
-            .replace(/🛫\s*\d{4}-\d{2}-\d{2}/g, '')
-            .replace(/📅\s*\d{4}-\d{2}-\d{2}/g, '')
-            .replace(/⏳\s*\d+d?/g, '')
-            .replace(/dependsOn::\s*#?[0-9.,\s#]+/gi, '')
-            .replace(/after:\s*#?[0-9.,\s#]+/gi, '')
-            .replace(/\[assigned::\s*[^\]]+\]/gi, '')
-            .replace(/@([a-zA-Z0-9_\-\.]+)/g, '')
-            .replace(/\[desc::\s*[^\]]+\]/gi, '')
-            .replace(/📝\s*[^\n🛫📅⏳@#\[]+/g, '')
-            .replace(/#milestone\b/gi, '')
-            .replace(/^(\s*-\s*\[[ xX]\]\s*)+/g, '')
-            .replace(/\s+/g, ' ')
-            .trim();
+        const cleanTitle = ProjectManager.stripProjectMetadata(text);
 
         let durationDays = 1;
         let isMilestone = isMilestoneExplicit;
@@ -696,16 +696,26 @@ created: ${getMoment().format('YYYY-MM-DD')}
             content = `# Timebox - ${today.format('dddd, MMMM Do YYYY')}\n\n## 📋 Tasks\n- [ ] \n`;
         }
 
-        const cleanTask = taskText.trim();
+        const cleanTask = ProjectManager.stripProjectMetadata(taskText);
         if (!cleanTask) return;
 
         const taskLine = `- [ ] ${cleanTask} [[${projectFile.basename}]]`;
 
-        if (content.includes(taskLine) || content.includes(cleanTask)) {
+        // Check if content already contains this clean task
+        const lines = content.split('\n');
+        const cleanCompare = cleanTask.toLowerCase();
+        const alreadyInToday = lines.some(l => {
+            const cleanL = ProjectManager.stripProjectMetadata(l).replace(/\[\[[^\]]+\]\]/g, '').trim().toLowerCase();
+            return cleanL.length > 2 && cleanL === cleanCompare;
+        });
+
+        if (alreadyInToday) {
+            if (showNotice) {
+                new Notice(`Task already in today's TimeBox: "${cleanTask.substring(0, 30)}..."`);
+            }
             return;
         }
 
-        const lines = content.split('\n');
         let insertIndex = -1;
         let isCallout = false;
 
@@ -753,16 +763,25 @@ created: ${getMoment().format('YYYY-MM-DD')}
 
     /**
      * Add a task to a target project note.
+     * Enforces deduplication and prevents '- [ ] - [ ]'.
      */
     async addTaskToProject(projectFile: TFile, taskText: string, showNotice = false): Promise<void> {
         const content = await this.app.vault.read(projectFile);
-        const taskLine = `- [ ] ${taskText}`;
+        const cleanTask = ProjectManager.stripTaskCheckbox(taskText);
+        if (!cleanTask) return;
+        const taskLine = `- [ ] ${cleanTask}`;
 
-        if (content.includes(taskText)) {
+        const lines = content.split('\n');
+        const cleanNewTask = ProjectManager.stripProjectMetadata(taskText).replace(/\[\[[^\]]+\]\]/g, '').trim().toLowerCase();
+        const alreadyExists = lines.some(line => {
+            const cleanExisting = ProjectManager.stripProjectMetadata(line).replace(/\[\[[^\]]+\]\]/g, '').trim().toLowerCase();
+            return cleanExisting.length > 2 && cleanExisting === cleanNewTask;
+        });
+
+        if (alreadyExists) {
             return;
         }
 
-        const lines = content.split('\n');
         let insertIndex = -1;
 
         for (let i = 0; i < lines.length; i++) {
@@ -799,6 +818,9 @@ created: ${getMoment().format('YYYY-MM-DD')}
             return;
         }
 
+        const cleanSub = ProjectManager.stripTaskCheckbox(subtaskText);
+        if (!cleanSub) return;
+
         let insertIndex = parentTaskLineIndex + 1;
         while (insertIndex < lines.length) {
             const line = lines[insertIndex];
@@ -812,7 +834,7 @@ created: ${getMoment().format('YYYY-MM-DD')}
             }
         }
 
-        const subtaskLine = `  - [ ] ${subtaskText}`;
+        const subtaskLine = `  - [ ] ${cleanSub}`;
         lines.splice(insertIndex, 0, subtaskLine);
 
         this.markInternalModification(projectFile.path);
@@ -836,6 +858,76 @@ created: ${getMoment().format('YYYY-MM-DD')}
         this.markInternalModification(projectFile.path);
         await this.app.vault.modify(projectFile, lines.join('\n'));
         new Notice(`Deleted task from ${projectFile.basename}`);
+    }
+
+    /**
+     * Add or update a resource definition in project note frontmatter.
+     */
+    async saveResource(projectFile: TFile, resource: ResourceDefinition): Promise<void> {
+        await this.app.fileManager.processFrontMatter(projectFile, (frontmatter) => {
+            if (!Array.isArray(frontmatter['resources'])) {
+                frontmatter['resources'] = [];
+            }
+            const resList = frontmatter['resources'];
+            const existingIdx = resList.findIndex((r: any) => 
+                (r.id && r.id.toLowerCase() === resource.id.toLowerCase()) || 
+                (r.name && r.name.toLowerCase() === resource.name.toLowerCase())
+            );
+
+            const resRecord: any = {
+                id: resource.id,
+                name: resource.name,
+                type: resource.type || 'Work',
+                maxUnits: resource.maxUnits !== undefined ? resource.maxUnits : 1.0,
+                workingHoursPerDay: resource.workingHoursPerDay || 8,
+                ratePerHour: resource.ratePerHour || 0
+            };
+            if (resource.costPerUse !== undefined) resRecord.costPerUse = resource.costPerUse;
+            if (resource.calendarId) resRecord.calendarId = resource.calendarId;
+            if (resource.notes) resRecord.notes = resource.notes;
+
+            if (existingIdx >= 0) {
+                resList[existingIdx] = resRecord;
+            } else {
+                resList.push(resRecord);
+            }
+        });
+        this.markInternalModification(projectFile.path);
+    }
+
+    /**
+     * Delete a resource definition from project note frontmatter.
+     */
+    async deleteResource(projectFile: TFile, resourceId: string): Promise<void> {
+        await this.app.fileManager.processFrontMatter(projectFile, (frontmatter) => {
+            if (Array.isArray(frontmatter['resources'])) {
+                const targetKey = resourceId.toLowerCase();
+                frontmatter['resources'] = frontmatter['resources'].filter((r: any) => 
+                    (r.id && r.id.toLowerCase() !== targetKey) && 
+                    (r.name && r.name.toLowerCase() !== targetKey)
+                );
+            }
+        });
+        this.markInternalModification(projectFile.path);
+    }
+
+    /**
+     * Assign a resource to a task line in a project file.
+     */
+    async assignResourceToTask(projectFile: TFile, taskLineIndex: number, resourceName: string, units: number = 1.0): Promise<void> {
+        const content = await this.app.vault.read(projectFile);
+        const lines = content.split('\n');
+        if (taskLineIndex < 0 || taskLineIndex >= lines.length) return;
+
+        let line = lines[taskLineIndex];
+        const cleanRes = resourceName.replace(/^@/, '').trim();
+        const tag = units === 1.0 ? `@${cleanRes}` : `[assigned:: @${cleanRes}:${Math.round(units * 100)}%]`;
+
+        if (!line.toLowerCase().includes(`@${cleanRes.toLowerCase()}`)) {
+            lines[taskLineIndex] = `${line.trimEnd()} ${tag}`;
+            this.markInternalModification(projectFile.path);
+            await this.app.vault.modify(projectFile, lines.join('\n'));
+        }
     }
 
     /**
@@ -1177,7 +1269,8 @@ created: ${getMoment().format('YYYY-MM-DD')}
 
         if (!isDailyNote && !isProjectFile) return;
 
-        const baseTaskText = cleanedTaskText.replace(/\[\[[^\]]+\]\]/g, '').trim();
+        const cleanSource = ProjectManager.stripProjectMetadata(cleanedTaskText).replace(/\[\[[^\]]+\]\]/g, '').trim().toLowerCase();
+        if (cleanSource.length < 2) return;
 
         const targetFiles: TFile[] = [];
         if (isDailyNote) {
@@ -1202,20 +1295,21 @@ created: ${getMoment().format('YYYY-MM-DD')}
             if (targetFile.path === sourceFile.path) continue;
 
             const content = await this.app.vault.read(targetFile);
-            if (!content.includes(baseTaskText)) continue;
-
             const lines = content.split('\n');
             let modified = false;
 
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
-                if (line.includes(baseTaskText) && (line.includes('- [ ]') || line.includes('- [x]') || line.includes('- [X]'))) {
-                    const currentStatus = line.includes('- [x]') || line.includes('- [X]');
-                    if (currentStatus !== isCompleted) {
-                        lines[i] = isCompleted
-                            ? line.replace(/- \[[ ]\]/, '- [x]')
-                            : line.replace(/- \[[xX]\]/, '- [ ]');
-                        modified = true;
+                if (line.includes('- [ ]') || line.includes('- [x]') || line.includes('- [X]')) {
+                    const cleanTarget = ProjectManager.stripProjectMetadata(line).replace(/\[\[[^\]]+\]\]/g, '').trim().toLowerCase();
+                    if (cleanTarget === cleanSource) {
+                        const currentStatus = line.includes('- [x]') || line.includes('- [X]');
+                        if (currentStatus !== isCompleted) {
+                            lines[i] = isCompleted
+                                ? line.replace(/- \[[ ]\]/, '- [x]')
+                                : line.replace(/- \[[xX]\]/, '- [ ]');
+                            modified = true;
+                        }
                     }
                 }
             }

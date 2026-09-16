@@ -1761,6 +1761,66 @@ body.is-resizing-gantt-splitter {
     gap: 12px;
 }
 
+.timebox-resource-sheet-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.timebox-btn-primary {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent, #ffffff);
+    border: none;
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.1s ease;
+}
+
+.timebox-btn-primary:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.timebox-row-action-btn {
+    background: var(--background-modifier-border);
+    color: var(--text-muted);
+    border: none;
+    border-radius: 3px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    margin-right: 4px;
+    transition: all 0.15s ease;
+}
+
+.timebox-row-action-btn:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.timebox-row-action-btn.is-assign {
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--text-accent, #38bdf8);
+}
+
+.timebox-row-action-btn.is-assign:hover {
+    background: rgba(59, 130, 246, 0.3);
+}
+
+.timebox-row-action-btn.is-danger {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--text-error, #f87171);
+}
+
+.timebox-row-action-btn.is-danger:hover {
+    background: rgba(239, 68, 68, 0.25);
+}
+
 .timebox-resource-summary-card {
     padding: 4px 0;
 }
@@ -1797,6 +1857,66 @@ body.is-resizing-gantt-splitter {
 .timebox-status-badge.is-danger {
     background: rgba(239, 68, 68, 0.15);
     color: var(--text-error, #f87171);
+}
+
+/* Resource Usage Matrix Navigation and Table */
+.timebox-usage-nav-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.timebox-usage-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.timebox-usage-res-row {
+    font-weight: 600;
+    background: var(--background-secondary-alt);
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.timebox-usage-res-row:hover {
+    background: var(--background-modifier-hover);
+}
+
+.timebox-usage-task-subrow {
+    background: var(--background-primary);
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.timebox-usage-cell {
+    text-align: center;
+    min-width: 52px;
+    padding: 6px 4px;
+    border: 1px solid var(--background-modifier-border);
+    transition: background 0.15s ease;
+}
+
+.timebox-usage-cell.is-non-working-cell {
+    background: rgba(100, 116, 139, 0.08);
+    color: var(--text-faint);
+}
+
+.timebox-usage-cell.is-allocated-cell {
+    font-weight: 600;
+    color: var(--text-accent);
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.timebox-usage-cell.is-overallocated-cell {
+    font-weight: 700;
+    color: var(--text-error, #ef4444);
+    background: rgba(239, 68, 68, 0.22);
+}
+
+.timebox-resource-modal {
+    max-width: 480px;
 }
 
 .timebox-resource-usage-card {
@@ -1962,6 +2082,17 @@ body.is-resizing-gantt-splitter {
     flex-direction: column;
     gap: 4px;
     position: relative;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.timebox-kpi-card.is-clickable {
+    cursor: pointer;
+}
+
+.timebox-kpi-card.is-clickable:hover {
+    transform: translateY(-2px);
+    border-color: var(--interactive-accent);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .timebox-kpi-icon {
@@ -2008,9 +2139,19 @@ body.is-resizing-gantt-splitter {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 0;
+    padding: 6px 8px;
     border-bottom: 1px solid var(--background-modifier-border);
     font-size: 12px;
+    border-radius: 4px;
+    transition: background 0.15s ease;
+}
+
+.timebox-critical-item.is-clickable {
+    cursor: pointer;
+}
+
+.timebox-critical-item.is-clickable:hover {
+    background: var(--background-modifier-hover);
 }
 
 .timebox-critical-step {
@@ -2038,9 +2179,19 @@ body.is-resizing-gantt-splitter {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 0;
+    padding: 6px 8px;
     border-bottom: 1px solid var(--background-modifier-border);
     font-size: 12px;
+    border-radius: 4px;
+    transition: background 0.15s ease;
+}
+
+.timebox-milestone-item.is-clickable {
+    cursor: pointer;
+}
+
+.timebox-milestone-item.is-clickable:hover {
+    background: var(--background-modifier-hover);
 }
 
 .timebox-milestone-name {

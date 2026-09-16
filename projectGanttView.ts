@@ -1,6 +1,6 @@
 import { ItemView, WorkspaceLeaf, TFile, setIcon, Menu, Notice, Modal, App, moment } from 'obsidian';
 import { ProjectManager, ProjectData, ProjectTask, WorkingCalendar } from './projectManager';
-import { ValidationIssue } from './projectModel';
+import { ValidationIssue, ResourceDefinition, ResourceType, CalendarDefinition } from './projectModel';
 import { ResourceEngine, ResourceUsageSummary } from './resourceEngine';
 import { ProjectCalendar } from './projectCalendar';
 import { ProjectCommandManager } from './projectCommandManager';
@@ -263,6 +263,206 @@ export class TaskInformationModal extends Modal {
     }
 }
 
+class ResourceModal extends Modal {
+    private resource: Partial<ResourceDefinition>;
+    private onSave: (res: ResourceDefinition) => Promise<void>;
+    private calendars: CalendarDefinition[];
+
+    constructor(
+        app: App,
+        resource: Partial<ResourceDefinition> | null,
+        calendars: CalendarDefinition[],
+        onSave: (res: ResourceDefinition) => Promise<void>
+    ) {
+        super(app);
+        this.resource = resource ? { ...resource } : {
+            id: '',
+            name: '',
+            type: 'Work',
+            maxUnits: 1.0,
+            workingHoursPerDay: 8,
+            ratePerHour: 0
+        };
+        this.calendars = calendars || [];
+        this.onSave = onSave;
+    }
+
+    onOpen(): void {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.addClass('timebox-resource-modal');
+
+        const isEdit = !!this.resource.id;
+        contentEl.createEl('h3', { text: isEdit ? 'Edit Resource' : 'Add New Resource' });
+
+        const form = contentEl.createDiv({ cls: 'timebox-task-info-form' });
+
+        // Name
+        const nameRow = form.createDiv({ cls: 'timebox-form-row full-width' });
+        nameRow.createEl('label', { text: 'Resource Name:' });
+        const nameInput = nameRow.createEl('input', { type: 'text', value: this.resource.name || '' });
+        nameInput.placeholder = 'e.g. Roberto Zenteno';
+
+        // Type
+        const typeRow = form.createDiv({ cls: 'timebox-form-row' });
+        typeRow.createEl('label', { text: 'Resource Type:' });
+        const typeSelect = typeRow.createEl('select');
+        (['Work', 'Material', 'Cost'] as ResourceType[]).forEach(t => {
+            const opt = typeSelect.createEl('option', { value: t, text: t });
+            if (this.resource.type === t) opt.selected = true;
+        });
+
+        // Max Units (%)
+        const unitsRow = form.createDiv({ cls: 'timebox-form-row' });
+        unitsRow.createEl('label', { text: 'Capacity / Max Units (%):' });
+        const unitsInput = unitsRow.createEl('input', {
+            type: 'number',
+            value: String(Math.round((this.resource.maxUnits !== undefined ? this.resource.maxUnits : 1.0) * 100))
+        });
+        unitsInput.min = '10';
+        unitsInput.max = '1000';
+        unitsInput.step = '10';
+
+        // Working Hours Per Day
+        const hoursRow = form.createDiv({ cls: 'timebox-form-row' });
+        hoursRow.createEl('label', { text: 'Working Hours / Day:' });
+        const hoursInput = hoursRow.createEl('input', {
+            type: 'number',
+            value: String(this.resource.workingHoursPerDay || 8)
+        });
+        hoursInput.min = '1';
+        hoursInput.max = '24';
+        hoursInput.step = '0.5';
+
+        // Hourly Rate ($)
+        const rateRow = form.createDiv({ cls: 'timebox-form-row' });
+        rateRow.createEl('label', { text: 'Standard Rate ($/hr):' });
+        const rateInput = rateRow.createEl('input', {
+            type: 'number',
+            value: String(this.resource.ratePerHour || 0)
+        });
+        rateInput.min = '0';
+        rateInput.step = '1';
+
+        // Cost Per Use ($)
+        const costRow = form.createDiv({ cls: 'timebox-form-row' });
+        costRow.createEl('label', { text: 'Cost Per Use ($):' });
+        const costInput = costRow.createEl('input', {
+            type: 'number',
+            value: String(this.resource.costPerUse || 0)
+        });
+        costInput.min = '0';
+        costInput.step = '1';
+
+        // Calendar Override
+        const calRow = form.createDiv({ cls: 'timebox-form-row full-width' });
+        calRow.createEl('label', { text: 'Resource Calendar:' });
+        const calSelect = calRow.createEl('select');
+        calSelect.createEl('option', { value: '', text: 'Default Project Calendar' });
+        for (const cal of this.calendars) {
+            const opt = calSelect.createEl('option', { value: cal.id, text: cal.name });
+            if (this.resource.calendarId === cal.id) opt.selected = true;
+        }
+
+        // Action Buttons
+        const footer = contentEl.createDiv({ cls: 'timebox-modal-footer' });
+        const cancelBtn = footer.createEl('button', { text: 'Cancel' });
+        cancelBtn.addEventListener('click', () => this.close());
+
+        const saveBtn = footer.createEl('button', { cls: 'mod-cta', text: isEdit ? 'Save Resource' : 'Add Resource' });
+        saveBtn.addEventListener('click', async () => {
+            const name = nameInput.value.trim();
+            if (!name) {
+                new Notice('Please enter a resource name');
+                return;
+            }
+
+            const rawUnits = parseFloat(unitsInput.value) || 100;
+            const resDef: ResourceDefinition = {
+                id: this.resource.id || name.toLowerCase().replace(/[^a-z0-9_\-]/g, '-'),
+                name,
+                type: typeSelect.value as ResourceType,
+                maxUnits: Math.max(0.1, rawUnits / 100),
+                workingHoursPerDay: parseFloat(hoursInput.value) || 8,
+                ratePerHour: parseFloat(rateInput.value) || 0,
+                costPerUse: parseFloat(costInput.value) || 0,
+                calendarId: calSelect.value || undefined
+            };
+
+            await this.onSave(resDef);
+            this.close();
+        });
+    }
+
+    onClose(): void {
+        this.contentEl.empty();
+    }
+}
+
+class AssignResourceModal extends Modal {
+    private rows: FlattenedGanttRow[];
+    private resource: ResourceDefinition;
+    private onAssign: (targetRow: FlattenedGanttRow, units: number) => Promise<void>;
+
+    constructor(
+        app: App,
+        resource: ResourceDefinition,
+        rows: FlattenedGanttRow[],
+        onAssign: (targetRow: FlattenedGanttRow, units: number) => Promise<void>
+    ) {
+        super(app);
+        this.resource = resource;
+        this.rows = rows.filter(r => !r.isParent);
+        this.onAssign = onAssign;
+    }
+
+    onOpen(): void {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.addClass('timebox-resource-modal');
+
+        contentEl.createEl('h3', { text: `Assign @${this.resource.name} to Task` });
+
+        const form = contentEl.createDiv({ cls: 'timebox-task-info-form' });
+
+        const taskRow = form.createDiv({ cls: 'timebox-form-row full-width' });
+        taskRow.createEl('label', { text: 'Target Task:' });
+        const taskSelect = taskRow.createEl('select');
+        this.rows.forEach(r => {
+            taskSelect.createEl('option', {
+                value: String(r.task.lineIndex),
+                text: `[WBS ${r.wbsCode}] ${r.task.cleanTitle}`
+            });
+        });
+
+        const unitsRow = form.createDiv({ cls: 'timebox-form-row' });
+        unitsRow.createEl('label', { text: 'Units / Allocation (%):' });
+        const unitsInput = unitsRow.createEl('input', { type: 'number', value: '100' });
+        unitsInput.min = '10';
+        unitsInput.max = '200';
+        unitsInput.step = '10';
+
+        const footer = contentEl.createDiv({ cls: 'timebox-modal-footer' });
+        const cancelBtn = footer.createEl('button', { text: 'Cancel' });
+        cancelBtn.addEventListener('click', () => this.close());
+
+        const assignBtn = footer.createEl('button', { cls: 'mod-cta', text: 'Assign Resource' });
+        assignBtn.addEventListener('click', async () => {
+            const lineIdx = parseInt(taskSelect.value, 10);
+            const targetRow = this.rows.find(r => r.task.lineIndex === lineIdx);
+            if (targetRow) {
+                const units = (parseFloat(unitsInput.value) || 100) / 100;
+                await this.onAssign(targetRow, units);
+                this.close();
+            }
+        });
+    }
+
+    onClose(): void {
+        this.contentEl.empty();
+    }
+}
+
 export class ProjectGanttView extends ItemView {
     plugin: TimeBoxPlugin;
     projectManager: ProjectManager;
@@ -279,6 +479,8 @@ export class ProjectGanttView extends ItemView {
     private renderRequested = false;
     private renderDebounceTimer: number | null = null;
     private wbsWidth = 540; // Default width to accommodate WBS, Name, Desc, Dates, Dur, Pred, Res, Info
+    private resourceUsageStartOffset = 0; // Timeline window offset in days
+    private expandedResources: Set<string> = new Set();
 
     // DOM references for sync scrolling
     private wbsBodyEl: HTMLElement | null = null;
@@ -2356,16 +2558,34 @@ export class ProjectGanttView extends ItemView {
         const usageMap = ResourceEngine.analyze(projectData.normalizedProject, calendar);
         const overAllocations = ResourceEngine.detectOverAllocations(projectData.normalizedProject);
 
-        // Header Summary Banner
-        const summaryCard = sheetEl.createDiv({ cls: 'timebox-resource-summary-card' });
-        summaryCard.createEl('h4', { text: `Project Resources (${usageMap.size})` });
+        // Header Summary Banner with Action Button
+        const headerBanner = sheetEl.createDiv({ cls: 'timebox-resource-header-banner' });
+        const titleArea = headerBanner.createDiv({ cls: 'timebox-resource-header-title' });
+        titleArea.createEl('h4', { text: `Project Resources (${usageMap.size})` });
+        titleArea.createSpan({ cls: 'timebox-resource-header-sub', text: 'Manage team members, types, capacities, rates, and task assignments.' });
+
+        const addResBtn = headerBanner.createEl('button', { cls: 'mod-cta timebox-add-res-btn' });
+        setIcon(addResBtn.createSpan(), 'plus');
+        addResBtn.createSpan({ text: ' Add Resource' });
+        addResBtn.addEventListener('click', () => {
+            new ResourceModal(
+                this.app,
+                null,
+                projectData.normalizedProject?.calendars || [],
+                async (resDef) => {
+                    await this.projectManager.saveResource(projectData.file, resDef);
+                    new Notice(`Added resource: @${resDef.name}`);
+                    void this.render();
+                }
+            ).open();
+        });
 
         if (overAllocations.length > 0) {
             const alertBox = sheetEl.createDiv({ cls: 'timebox-resource-alert-box' });
             const iconSpan = alertBox.createSpan({ cls: 'timebox-alert-icon' });
             setIcon(iconSpan, 'alert-triangle');
             alertBox.createSpan({
-                text: ` Resource Conflict: ${overAllocations.length} resource${overAllocations.length > 1 ? 's' : ''} over-allocated! Peak assignment exceeds maximum units.`
+                text: ` Resource Conflict: ${overAllocations.length} resource${overAllocations.length > 1 ? 's' : ''} over-allocated! Peak assignment exceeds capacity.`
             });
         }
 
@@ -2374,14 +2594,30 @@ export class ProjectGanttView extends ItemView {
         const table = tableWrapper.createEl('table', { cls: 'timebox-task-sheet-table' });
         const thead = table.createEl('thead');
         const hRow = thead.createEl('tr');
-        ['Resource Name', 'Type', 'Max Units', 'Assigned Tasks', 'Total Work', 'Peak Units', 'Status'].forEach(h => {
+        [
+            'Resource Name',
+            'Type',
+            'Capacity',
+            'Working Hours',
+            'Rate / Cost',
+            'Assigned Tasks',
+            'Total Work',
+            'Utilization',
+            'Peak Units',
+            'Status',
+            'Actions'
+        ].forEach(h => {
             hRow.createEl('th', { text: h });
         });
 
         const tbody = table.createEl('tbody');
         if (usageMap.size === 0) {
             const emptyRow = tbody.createEl('tr');
-            emptyRow.createEl('td', { attr: { colspan: '7' }, cls: 'timebox-table-empty', text: 'No resources assigned to tasks in this project. Use @name in task titles to assign team members.' });
+            emptyRow.createEl('td', {
+                attr: { colspan: '11' },
+                cls: 'timebox-table-empty',
+                text: 'No resources defined in this project. Click "+ Add Resource" above or use @name in task titles to assign team members.'
+            });
             return;
         }
 
@@ -2395,19 +2631,42 @@ export class ProjectGanttView extends ItemView {
             nameTd.createSpan({ cls: 'timebox-resource-pill', text: `@${summary.resource.name}` });
 
             // 2. Type
-            tr.createEl('td', { text: 'Work' });
+            tr.createEl('td', { text: summary.resource.type || 'Work' });
 
-            // 3. Max Units
-            tr.createEl('td', { text: `${Math.round(summary.resource.maxUnits * 100)}%` });
+            // 3. Capacity / Max Units
+            tr.createEl('td', { text: `${Math.round((summary.resource.maxUnits || 1.0) * 100)}%` });
 
-            // 4. Assigned Tasks Count
+            // 4. Working Hours / Day
+            tr.createEl('td', { text: `${summary.resource.workingHoursPerDay || 8}h/d` });
+
+            // 5. Rate / Cost
+            const rateStr = summary.resource.ratePerHour
+                ? `$${summary.resource.ratePerHour}/h`
+                : (summary.resource.costPerUse ? `$${summary.resource.costPerUse}/use` : '—');
+            tr.createEl('td', { text: rateStr });
+
+            // 6. Assigned Tasks Count
             const taskTd = tr.createEl('td');
-            taskTd.setText(`${summary.assignedTasks.length} task${summary.assignedTasks.length === 1 ? '' : 's'}`);
+            const taskCount = summary.assignedTasks.length;
+            const taskBadge = taskTd.createSpan({
+                cls: 'timebox-assigned-tasks-badge',
+                text: `${taskCount} task${taskCount === 1 ? '' : 's'}`
+            });
+            if (taskCount > 0) {
+                taskBadge.title = summary.assignedTasks.map(t => `[WBS ${t.wbsCode}] ${t.title}`).join('\n');
+            }
 
-            // 5. Total Work
+            // 7. Total Work
             tr.createEl('td', { text: `${summary.totalWorkHours}h` });
 
-            // 6. Peak Units
+            // 8. Overall Utilization %
+            const utilTd = tr.createEl('td');
+            utilTd.setText(`${summary.overallUtilizationPercent}%`);
+            if (summary.overallUtilizationPercent > 100) {
+                utilTd.addClass('text-danger');
+            }
+
+            // 9. Peak Units
             const peakTd = tr.createEl('td');
             const peakPct = Math.round(summary.peakAllocationUnits * 100);
             peakTd.setText(`${peakPct}%`);
@@ -2415,13 +2674,73 @@ export class ProjectGanttView extends ItemView {
                 peakTd.addClass('text-danger');
             }
 
-            // 7. Status
+            // 10. Status
             const statusTd = tr.createEl('td');
             if (summary.hasOverAllocation) {
                 statusTd.createSpan({ cls: 'timebox-status-badge is-danger', text: '⚠️ Over-allocated' });
             } else {
                 statusTd.createSpan({ cls: 'timebox-status-badge is-success', text: '✓ Normal' });
             }
+
+            // 11. Actions (Edit, Assign, Delete)
+            const actionsTd = tr.createEl('td', { cls: 'timebox-resource-actions-cell' });
+
+            // Edit button
+            const editBtn = actionsTd.createEl('button', {
+                cls: 'timebox-row-action-btn',
+                title: `Edit ${summary.resource.name}`
+            });
+            setIcon(editBtn, 'sliders');
+            editBtn.addEventListener('click', () => {
+                new ResourceModal(
+                    this.app,
+                    summary.resource,
+                    projectData.normalizedProject?.calendars || [],
+                    async (resDef) => {
+                        await this.projectManager.saveResource(projectData.file, resDef);
+                        new Notice(`Updated resource: @${resDef.name}`);
+                        void this.render();
+                    }
+                ).open();
+            });
+
+            // Assign to task button
+            const assignBtn = actionsTd.createEl('button', {
+                cls: 'timebox-row-action-btn',
+                title: `Assign @${summary.resource.name} to a task`
+            });
+            setIcon(assignBtn, 'user-plus');
+            assignBtn.addEventListener('click', () => {
+                new AssignResourceModal(
+                    this.app,
+                    summary.resource,
+                    rows,
+                    async (targetRow, units) => {
+                        await this.projectManager.assignResourceToTask(
+                            projectData.file,
+                            targetRow.task.lineIndex,
+                            summary.resource.name,
+                            units
+                        );
+                        new Notice(`Assigned @${summary.resource.name} to "${targetRow.task.cleanTitle}"`);
+                        void this.render();
+                    }
+                ).open();
+            });
+
+            // Delete button
+            const delBtn = actionsTd.createEl('button', {
+                cls: 'timebox-row-action-btn is-delete',
+                title: `Delete ${summary.resource.name}`
+            });
+            setIcon(delBtn, 'trash-2');
+            delBtn.addEventListener('click', async () => {
+                if (confirm(`Are you sure you want to delete resource "@${summary.resource.name}"?`)) {
+                    await this.projectManager.deleteResource(projectData.file, summary.resource.id);
+                    new Notice(`Deleted resource: @${summary.resource.name}`);
+                    void this.render();
+                }
+            });
         }
     }
 
@@ -2439,64 +2758,164 @@ export class ProjectGanttView extends ItemView {
         const calendar = ProjectCalendar.fromDefinition(calDef);
         const usageMap = ResourceEngine.analyze(projectData.normalizedProject, calendar);
 
-        const headerEl = usagePane.createDiv({ cls: 'timebox-usage-header' });
-        headerEl.createEl('h4', { text: 'Time-Phased Resource Workload' });
-        headerEl.createEl('p', {
-            cls: 'timebox-usage-subtitle',
-            text: 'Daily hours allocated per resource across active tasks. Highlighted dates indicate concurrent task overlap exceeding daily capacity (8h/day).'
+        // Timeline Window Calculation (14 Days = 2 Weeks)
+        const projectStart = projectData.projectStartDate || new Date().toISOString().slice(0, 10);
+        const windowMoment = getMoment(projectStart).add(this.resourceUsageStartOffset, 'days');
+        const timelineDays: Array<{ dateStr: string; label: string; isWorkDay: boolean }> = [];
+
+        for (let i = 0; i < 14; i++) {
+            const curM = getMoment(windowMoment).add(i, 'days');
+            const dStr = curM.format('YYYY-MM-DD');
+            timelineDays.push({
+                dateStr: dStr,
+                label: curM.format('ddd DD'),
+                isWorkDay: calendar.isWorkingDay(dStr)
+            });
+        }
+
+        const startDateLabel = timelineDays[0].dateStr;
+        const endDateLabel = timelineDays[timelineDays.length - 1].dateStr;
+
+        // Navigation Toolbar
+        const navBar = usagePane.createDiv({ cls: 'timebox-usage-nav-bar' });
+        const leftControls = navBar.createDiv({ cls: 'timebox-usage-nav-controls' });
+
+        const prevBtn = leftControls.createEl('button', { cls: 'timebox-nav-btn', text: '◀ Prev Week' });
+        prevBtn.addEventListener('click', () => {
+            this.resourceUsageStartOffset -= 7;
+            void this.render();
+        });
+
+        const todayBtn = leftControls.createEl('button', { cls: 'timebox-nav-btn', text: 'Today' });
+        todayBtn.addEventListener('click', () => {
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const diffDays = Math.round((new Date(todayStr).getTime() - new Date(projectStart).getTime()) / (1000 * 60 * 60 * 24));
+            this.resourceUsageStartOffset = diffDays;
+            void this.render();
+        });
+
+        const nextBtn = leftControls.createEl('button', { cls: 'timebox-nav-btn', text: 'Next Week ▶' });
+        nextBtn.addEventListener('click', () => {
+            this.resourceUsageStartOffset += 7;
+            void this.render();
+        });
+
+        leftControls.createSpan({
+            cls: 'timebox-usage-range-label',
+            text: `Timeline: ${startDateLabel} → ${endDateLabel}`
+        });
+
+        navBar.createSpan({
+            cls: 'timebox-usage-legend',
+            text: '■ Over-allocated | ■ Allocated | ▨ Non-working Day'
         });
 
         if (usageMap.size === 0) {
-            usagePane.createDiv({ cls: 'timebox-empty-view', text: 'No resources assigned. Assign tasks with @resource name to see workload.' });
+            usagePane.createDiv({
+                cls: 'timebox-empty-view',
+                text: 'No resources defined or assigned. Add resources in the Resource Sheet or assign @name to tasks.'
+            });
             return;
         }
 
-        for (const [resId, summary] of usageMap.entries()) {
-            const card = usagePane.createDiv({
-                cls: `timebox-resource-usage-card ${summary.hasOverAllocation ? 'has-overallocation' : ''}`
+        // Time-Phased Workload Matrix Table
+        const tableWrapper = usagePane.createDiv({ cls: 'timebox-usage-table-wrapper' });
+        const table = tableWrapper.createEl('table', { cls: 'timebox-usage-table' });
+        const thead = table.createEl('thead');
+        const hRow = thead.createEl('tr');
+
+        const nameTh = hRow.createEl('th', { cls: 'col-usage-name sticky-col', text: 'Resource / Assigned Task' });
+        timelineDays.forEach(d => {
+            const th = hRow.createEl('th', {
+                cls: `timebox-usage-th ${!d.isWorkDay ? 'is-non-working-day' : ''}`,
+                text: d.label
+            });
+            th.title = `${d.dateStr} (${d.isWorkDay ? 'Working Day' : 'Non-working / Weekend'})`;
+        });
+
+        const tbody = table.createEl('tbody');
+
+        for (const [resKey, summary] of usageMap.entries()) {
+            const isExpanded = this.expandedResources.has(resKey);
+
+            // 1. Parent Resource Row
+            const tr = tbody.createEl('tr', {
+                cls: `timebox-usage-resource-row ${summary.hasOverAllocation ? 'has-conflict-row' : ''}`
             });
 
-            // Card Header
-            const cardHeader = card.createDiv({ cls: 'timebox-usage-card-header' });
-            const leftHeader = cardHeader.createDiv({ cls: 'timebox-usage-card-title' });
-            leftHeader.createSpan({ cls: 'timebox-resource-tag-large', text: `@${summary.resource.name}` });
-            leftHeader.createSpan({ cls: 'timebox-usage-meta', text: `Total Work: ${summary.totalWorkHours}h | Peak: ${Math.round(summary.peakAllocationUnits * 100)}%` });
+            const nameTd = tr.createEl('td', { cls: 'col-usage-name sticky-col' });
+            const toggleIcon = nameTd.createSpan({ cls: 'timebox-usage-row-chevron' });
+            setIcon(toggleIcon, isExpanded ? 'chevron-down' : 'chevron-right');
 
-            if (summary.hasOverAllocation) {
-                cardHeader.createSpan({ cls: 'timebox-status-badge is-danger', text: '⚠️ Over-allocated' });
-            } else {
-                cardHeader.createSpan({ cls: 'timebox-status-badge is-success', text: '✓ Normal' });
-            }
+            const pill = nameTd.createSpan({ cls: 'timebox-resource-pill', text: `@${summary.resource.name}` });
+            const metaSpan = nameTd.createSpan({
+                cls: 'timebox-usage-row-meta',
+                text: ` (${Math.round((summary.resource.maxUnits || 1) * 100)}%, ${summary.resource.workingHoursPerDay || 8}h/d)`
+            });
 
-            // Tasks List for this resource
-            const taskList = card.createDiv({ cls: 'timebox-usage-tasks' });
-            taskList.createEl('strong', { text: 'Assigned Tasks:' });
-            const ul = taskList.createEl('ul', { cls: 'timebox-usage-task-list' });
-            for (const t of summary.assignedTasks) {
-                const li = ul.createEl('li');
-                li.createSpan({ cls: 'timebox-usage-task-code', text: `[WBS ${t.wbsCode}] ` });
-                li.createSpan({ cls: 'timebox-usage-task-title', text: t.title });
-                li.createSpan({ cls: 'timebox-usage-task-dates', text: ` (${t.calculatedStart || t.userStart || '?'} to ${t.calculatedFinish || t.userFinish || '?'}, ${t.workHours}h work)` });
-            }
+            nameTd.addEventListener('click', () => {
+                if (this.expandedResources.has(resKey)) {
+                    this.expandedResources.delete(resKey);
+                } else {
+                    this.expandedResources.add(resKey);
+                }
+                void this.render();
+            });
 
-            // Daily allocations summary heatmap
-            const dailyEntries = Array.from(summary.dailyAllocations.entries())
-                .filter(([_, alloc]) => alloc.allocatedUnits > 0)
-                .sort(([d1], [d2]) => d1.localeCompare(d2));
+            // Day Columns for Resource
+            timelineDays.forEach(d => {
+                const td = tr.createEl('td', { cls: 'timebox-usage-cell' });
+                const daily = summary.dailyAllocations.get(d.dateStr);
 
-            if (dailyEntries.length > 0) {
-                const daysWrapper = card.createDiv({ cls: 'timebox-usage-days-wrapper' });
-                daysWrapper.createEl('div', { cls: 'timebox-usage-days-title', text: 'Daily Allocation Heatmap:' });
-                const daysGrid = daysWrapper.createDiv({ cls: 'timebox-usage-days-grid' });
+                if (daily && daily.allocatedHours > 0) {
+                    const hours = Math.round(daily.allocatedHours * 10) / 10;
+                    if (daily.isOverAllocated) {
+                        td.addClass('is-overallocated-cell');
+                        td.createDiv({ cls: 'timebox-usage-hours', text: `${hours}h` });
+                        td.createSpan({
+                            cls: 'timebox-overalloc-badge',
+                            text: `${Math.round(daily.allocatedUnits * 100)}%`
+                        });
+                        td.title = `${summary.resource.name} on ${d.dateStr}: ${hours}h allocated vs ${daily.capacityHours}h capacity! Conflicting tasks: ${daily.taskIds.join(', ')}`;
+                    } else {
+                        td.addClass('is-allocated-cell');
+                        td.createDiv({ cls: 'timebox-usage-hours', text: `${hours}h` });
+                        td.title = `${summary.resource.name} on ${d.dateStr}: ${hours}h (${Math.round(daily.allocatedUnits * 100)}%)`;
+                    }
+                } else {
+                    if (!d.isWorkDay) {
+                        td.addClass('is-non-working-cell');
+                        td.setText('—');
+                    } else {
+                        td.setText('—');
+                    }
+                }
+            });
 
-                for (const [dateStr, alloc] of dailyEntries) {
-                    const dayCell = daysGrid.createDiv({
-                        cls: `timebox-usage-day-cell ${alloc.isOverAllocated ? 'is-overallocated' : ''}`
+            // 2. Child Task Sub-Rows (if expanded)
+            if (isExpanded) {
+                for (const task of summary.assignedTasks) {
+                    const taskTr = tbody.createEl('tr', { cls: 'timebox-usage-task-subrow' });
+                    const taskNameTd = taskTr.createEl('td', { cls: 'col-usage-name sticky-col task-subrow-title' });
+                    taskNameTd.createSpan({ cls: 'timebox-task-wbs-code', text: `[WBS ${task.wbsCode}] ` });
+                    taskNameTd.createSpan({ text: (task as any).cleanTitle || task.title });
+
+                    timelineDays.forEach(d => {
+                        const taskTd = taskTr.createEl('td', { cls: 'timebox-usage-cell task-subrow-cell' });
+                        const daily = summary.dailyAllocations.get(d.dateStr);
+                        const tw = daily?.taskWork.find(w => w.taskId === task.id);
+
+                        if (tw && tw.hours > 0) {
+                            taskTd.addClass('is-task-work-cell');
+                            taskTd.setText(`${tw.hours}h`);
+                            taskTd.title = `Task [WBS ${task.wbsCode}]: ${tw.hours}h on ${d.dateStr}`;
+                        } else {
+                            if (!d.isWorkDay) {
+                                taskTd.addClass('is-non-working-cell');
+                            }
+                            taskTd.setText('—');
+                        }
                     });
-                    dayCell.createDiv({ cls: 'timebox-day-date', text: dateStr.slice(5) }); // MM-DD
-                    const hours = Math.round(alloc.allocatedUnits * 8 * 10) / 10;
-                    dayCell.createDiv({ cls: 'timebox-day-hours', text: `${hours}h` });
-                    dayCell.title = `${dateStr}: ${hours}h/day (${Math.round(alloc.allocatedUnits * 100)}%)${alloc.isOverAllocated ? ' [OVER-ALLOCATED: ' + alloc.taskIds.join(', ') + ']' : ''}`;
                 }
             }
         }
@@ -2520,44 +2939,95 @@ export class ProjectGanttView extends ItemView {
         const progressBarInner = progressBarOuter.createDiv({ cls: 'timebox-progress-bar-inner' });
         progressBarInner.setCssStyles({ width: `${Math.min(100, Math.max(0, projectData.progressPercent))}%` });
 
-        // 4 KPI Cards
+        // Dynamic Calculations
+        const totalTasks = rows.length;
+        const completedTasks = projectData.completedCount;
+        const remainingTasks = Math.max(0, totalTasks - completedTasks);
+        const totalWork = projectData.normalizedProject?.totalWorkHours || rows.reduce((sum, r) => sum + r.workHours, 0);
+        const totalCost = projectData.normalizedProject?.totalCost || rows.reduce((sum, r) => sum + ((r.task as any).cost || 0), 0);
+
+        const startDate = projectData.projectStartDate || '—';
+        const dueDate = projectData.projectDueDate || '—';
+        const totalDurationDays = (startDate !== '—' && dueDate !== '—')
+            ? WorkingCalendar.calculateWorkingDays(startDate, dueDate)
+            : (rows.length > 0 ? rows.reduce((max, r) => Math.max(max, r.durationDays), 0) : 0);
+
+        const criticalRows = rows.filter(r => r.isCritical && !r.task.completed);
+        const criticalPathDuration = criticalRows.reduce((sum, r) => sum + r.durationDays, 0);
+
+        const milestones = rows.filter(r => r.isMilestone);
+        const completedMilestones = milestones.filter(m => m.task.completed).length;
+
+        const hasBaseline = !!(projectData.normalizedProject?.baselines && Object.keys(projectData.normalizedProject.baselines).length > 0);
+
+        // 4 Dynamic Primary KPI Cards
         const kpiGrid = summaryPane.createDiv({ cls: 'timebox-summary-kpi-grid' });
 
-        // Card 1: Schedule
-        const card1 = kpiGrid.createDiv({ cls: 'timebox-kpi-card' });
+        // Card 1: Schedule Timeline (Click -> Gantt)
+        const card1 = kpiGrid.createDiv({ cls: 'timebox-kpi-card is-clickable' });
+        card1.title = 'Click to switch to Gantt Timeline';
         const icon1 = card1.createSpan({ cls: 'timebox-kpi-icon' });
         setIcon(icon1, 'calendar');
         card1.createEl('div', { cls: 'timebox-kpi-title', text: 'Schedule Timeline' });
-        card1.createEl('div', { cls: 'timebox-kpi-value', text: `${projectData.projectStartDate || '—'} → ${projectData.projectDueDate || '—'}` });
-        const totalDurationDays = rows.length > 0 ? rows.reduce((max, r) => Math.max(max, r.durationDays), 0) : 0;
-        card1.createEl('div', { cls: 'timebox-kpi-sub', text: `Duration: ${totalDurationDays} working days` });
+        card1.createEl('div', { cls: 'timebox-kpi-value', text: `${startDate} → ${dueDate}` });
+        card1.createEl('div', {
+            cls: 'timebox-kpi-sub',
+            text: `${totalDurationDays} working days • ${remainingTasks} tasks remaining`
+        });
+        card1.addEventListener('click', () => {
+            this.activeView = 'gantt';
+            void this.render();
+        });
 
-        // Card 2: Work & Tasks
-        const card2 = kpiGrid.createDiv({ cls: 'timebox-kpi-card' });
+        // Card 2: Tasks & Work (Click -> Task Sheet)
+        const card2 = kpiGrid.createDiv({ cls: 'timebox-kpi-card is-clickable' });
+        card2.title = 'Click to switch to Task Sheet';
         const icon2 = card2.createSpan({ cls: 'timebox-kpi-icon' });
         setIcon(icon2, 'check-square');
         card2.createEl('div', { cls: 'timebox-kpi-title', text: 'Tasks & Work' });
-        card2.createEl('div', { cls: 'timebox-kpi-value', text: `${projectData.completedCount} / ${rows.length} Tasks` });
-        const totalWork = projectData.normalizedProject?.totalWorkHours || rows.reduce((sum, r) => sum + r.workHours, 0);
-        card2.createEl('div', { cls: 'timebox-kpi-sub', text: `Total Work: ${totalWork} hours` });
+        card2.createEl('div', { cls: 'timebox-kpi-value', text: `${completedTasks} / ${totalTasks} Tasks` });
+        card2.createEl('div', {
+            cls: 'timebox-kpi-sub',
+            text: `Total Work: ${totalWork}h • ${completedMilestones}/${milestones.length} Milestones`
+        });
+        card2.addEventListener('click', () => {
+            this.activeView = 'task-sheet';
+            void this.render();
+        });
 
-        // Card 3: Critical Path
-        const criticalRows = rows.filter(r => r.isCritical && !r.task.completed);
-        const card3 = kpiGrid.createDiv({ cls: 'timebox-kpi-card' });
+        // Card 3: Critical Path (Click -> Critical Path Gantt)
+        const card3 = kpiGrid.createDiv({ cls: 'timebox-kpi-card is-clickable' });
+        card3.title = 'Click to highlight Critical Path on Gantt';
         const icon3 = card3.createSpan({ cls: 'timebox-kpi-icon' });
         setIcon(icon3, 'zap');
         card3.createEl('div', { cls: 'timebox-kpi-title', text: 'Critical Path' });
         card3.createEl('div', { cls: 'timebox-kpi-value', text: `${criticalRows.length} Critical Tasks` });
-        card3.createEl('div', { cls: 'timebox-kpi-sub', text: criticalRows.length > 0 ? 'Zero float tasks determine project finish' : 'All tasks currently flexible' });
+        card3.createEl('div', {
+            cls: 'timebox-kpi-sub',
+            text: criticalRows.length > 0 ? `${criticalPathDuration}d critical span • zero float tasks determine finish` : 'All tasks currently flexible'
+        });
+        card3.addEventListener('click', () => {
+            this.activeView = 'gantt';
+            this.showCriticalPath = true;
+            void this.render();
+        });
 
-        // Card 4: Baseline Tracking
-        const hasBaseline = !!(projectData.normalizedProject?.baselines && Object.keys(projectData.normalizedProject.baselines).length > 0);
-        const card4 = kpiGrid.createDiv({ cls: 'timebox-kpi-card' });
+        // Card 4: Cost & Baselines (Click -> Toggle Baselines)
+        const card4 = kpiGrid.createDiv({ cls: 'timebox-kpi-card is-clickable' });
+        card4.title = 'Click to toggle baseline comparison in Gantt';
         const icon4 = card4.createSpan({ cls: 'timebox-kpi-icon' });
         setIcon(icon4, 'bar-chart-2');
-        card4.createEl('div', { cls: 'timebox-kpi-title', text: 'Baseline Tracking' });
-        card4.createEl('div', { cls: 'timebox-kpi-value', text: hasBaseline ? 'Baseline 0 Active' : 'No Baseline Set' });
-        card4.createEl('div', { cls: 'timebox-kpi-sub', text: hasBaseline ? 'Schedule tracking against plan' : 'Click "Set Baseline" to snapshot plan' });
+        card4.createEl('div', { cls: 'timebox-kpi-title', text: 'Cost & Baseline Tracking' });
+        card4.createEl('div', { cls: 'timebox-kpi-value', text: `$${totalCost.toLocaleString()}` });
+        card4.createEl('div', {
+            cls: 'timebox-kpi-sub',
+            text: hasBaseline ? 'Baseline 0 Active (Click to overlay plan)' : 'Snapshot plan to track schedule variance'
+        });
+        card4.addEventListener('click', () => {
+            this.activeView = 'gantt';
+            this.showBaselines = true;
+            void this.render();
+        });
 
         // Critical Path Task Sequence List
         if (criticalRows.length > 0) {
@@ -2566,26 +3036,39 @@ export class ProjectGanttView extends ItemView {
             const critList = critSection.createDiv({ cls: 'timebox-summary-critical-list' });
 
             criticalRows.forEach((r, idx) => {
-                const item = critList.createDiv({ cls: 'timebox-critical-item' });
+                const item = critList.createDiv({ cls: 'timebox-critical-item is-clickable' });
+                item.title = 'Click to view task in Gantt';
                 item.createSpan({ cls: 'timebox-critical-step', text: `#${idx + 1}` });
                 item.createSpan({ cls: 'timebox-critical-wbs', text: `[WBS ${r.wbsCode}]` });
                 item.createSpan({ cls: 'timebox-critical-name', text: r.task.cleanTitle });
                 item.createSpan({ cls: 'timebox-critical-dates', text: `${r.startDate || '?'} → ${r.dueDate || '?'} (${r.durationDays}d)` });
+                item.addEventListener('click', () => {
+                    this.activeView = 'gantt';
+                    this.selectedTaskLine = r.task.lineIndex;
+                    void this.render();
+                });
             });
         }
 
         // Milestones Section
-        const milestones = rows.filter(r => r.isMilestone);
         if (milestones.length > 0) {
             const msSection = summaryPane.createDiv({ cls: 'timebox-summary-section' });
-            msSection.createEl('h3', { text: '◆ Project Milestones' });
+            msSection.createEl('h3', { text: `◆ Project Milestones (${completedMilestones}/${milestones.length})` });
             const msList = msSection.createDiv({ cls: 'timebox-summary-milestone-list' });
 
             milestones.forEach((m) => {
-                const item = msList.createDiv({ cls: `timebox-milestone-item ${m.task.completed ? 'is-completed' : ''}` });
+                const item = msList.createDiv({
+                    cls: `timebox-milestone-item is-clickable ${m.task.completed ? 'is-completed' : ''}`
+                });
+                item.title = 'Click to jump to milestone in Task Sheet';
                 item.createSpan({ cls: 'timebox-milestone-icon', text: m.task.completed ? '✅' : '◆' });
                 item.createSpan({ cls: 'timebox-milestone-name', text: m.task.cleanTitle });
                 item.createSpan({ cls: 'timebox-milestone-date', text: m.dueDate || m.startDate || 'No date' });
+                item.addEventListener('click', () => {
+                    this.activeView = 'task-sheet';
+                    this.selectedTaskLine = m.task.lineIndex;
+                    void this.render();
+                });
             });
         }
     }

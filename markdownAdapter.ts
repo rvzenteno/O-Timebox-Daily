@@ -13,6 +13,42 @@ import { ProjectCalendar } from './projectCalendar';
 
 export class MarkdownAdapter {
     /**
+     * Strip any checklist markdown prefix (including callout quote bars) to prevent '- [ ] - [ ]'.
+     */
+    static stripTaskCheckbox(text: string): string {
+        if (!text) return '';
+        return text.replace(/^(\s*(?:>\s*)?-\s*\[[ xX]\]\s*)+/g, '').trim();
+    }
+
+    /**
+     * Clean presentation boundary: strips PM-specific scheduling tokens from a task string.
+     * Preserves task title and Timebox wikilinks (e.g. [[Project]]).
+     */
+    static stripProjectMetadata(text: string): string {
+        if (!text) return '';
+        return text
+            .replace(/^(\s*(?:>\s*)?-\s*\[[ xX]\]\s*)+/g, '') // remove checkboxes
+            .replace(/🛫\s*\d{4}-\d{2}-\d{2}/g, '')            // Start date
+            .replace(/📅\s*\d{4}-\d{2}-\d{2}/g, '')            // Due/Finish date
+            .replace(/⏳\s*\d+d?/g, '')                        // Duration
+            .replace(/dependsOn::\s*#?[0-9a-zA-Z.,_+\-\s#]+/gi, '') // Dependencies
+            .replace(/after:\s*#?[0-9a-zA-Z.,_+\-\s#]+/gi, '')      // After predecessor
+            .replace(/\[assigned::\s*[^\]]+\]/gi, '')               // Resource assignment bracket
+            .replace(/(^|\s)@[a-zA-Z0-9_\-\.]+(\(\d+%\))?/g, '$1')  // Inline resource @name or @name(100%)
+            .replace(/\[desc::\s*[^\]]+\]/gi, '')                   // Description bracket
+            .replace(/📝\s*[^\n🛫📅⏳@#\[]+/g, '')                 // Description memo
+            .replace(/\[priority::\s*[^\]]+\]/gi, '')               // Priority bracket
+            .replace(/\[costCode::\s*[^\]]+\]/gi, '')               // Cost code bracket
+            .replace(/\[constraint::\s*[^\]]+\]/gi, '')             // Constraint bracket
+            .replace(/\[deadline::\s*[^\]]+\]/gi, '')               // Deadline bracket
+            .replace(/\[%::\s*[^\]]+\]/gi, '')                      // Progress bracket
+            .replace(/#milestone\b/gi, '')                          // Milestone tag
+            .replace(/^(\s*(?:>\s*)?-\s*\[[ xX]\]\s*)+/g, '')      // second pass on checkboxes
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    /**
      * Parse raw markdown file content into a NormalizedProject model.
      * Backwards-compatible with legacy Timebox task tokens.
      */
@@ -38,7 +74,28 @@ export class MarkdownAdapter {
 
         // Resources
         const resources: ResourceDefinition[] = Array.isArray(frontmatter['resources'])
-            ? frontmatter['resources']
+            ? frontmatter['resources'].map((r: any) => {
+                let maxUnits = 1.0;
+                if (typeof r.maxUnits === 'number') {
+                    maxUnits = r.maxUnits;
+                } else if (typeof r.maxUnits === 'string') {
+                    maxUnits = r.maxUnits.includes('%') ? parseFloat(r.maxUnits) / 100 : parseFloat(r.maxUnits) || 1.0;
+                }
+                const workingHours = typeof r.workingHoursPerDay === 'number' ? r.workingHoursPerDay : (parseFloat(r.workingHoursPerDay) || 8);
+                const rate = typeof r.ratePerHour === 'number' ? r.ratePerHour : (parseFloat(r.ratePerHour) || 0);
+                const costPerUse = typeof r.costPerUse === 'number' ? r.costPerUse : (parseFloat(r.costPerUse) || 0);
+                return {
+                    id: String(r.id || r.name || '').toLowerCase().replace(/[^a-z0-9_\-]/g, '-'),
+                    name: String(r.name || r.id || 'Resource'),
+                    type: (r.type === 'Material' || r.type === 'Cost') ? r.type : 'Work',
+                    maxUnits: isNaN(maxUnits) ? 1.0 : maxUnits,
+                    workingHoursPerDay: isNaN(workingHours) ? 8 : workingHours,
+                    ratePerHour: isNaN(rate) ? 0 : rate,
+                    costPerUse: isNaN(costPerUse) ? 0 : costPerUse,
+                    calendarId: r.calendarId || undefined,
+                    notes: r.notes || undefined
+                };
+            })
             : [];
 
         // Baselines
@@ -135,6 +192,13 @@ export class MarkdownAdapter {
     /**
      * Parse frontmatter block safely.
      */
+    private static parseScalar(val: string): any {
+        if (val === 'true') return true;
+        if (val === 'false') return false;
+        if (!isNaN(Number(val)) && val !== '') return Number(val);
+        return val.replace(/^['"](.*)['"]$/, '$1');
+    }
+
     private static parseFrontmatter(content: string, lines: string[]): { frontmatter: Record<string, any>; bodyStartIndex: number } {
         const frontmatter: Record<string, any> = {};
         let bodyStartIndex = 0;
@@ -146,15 +210,55 @@ export class MarkdownAdapter {
                 const fmLines = fmText.split('\n');
                 bodyStartIndex = fmLines.length + 2; // skip both '---' delimiters
 
-                for (const fLine of fmLines) {
+                let currentList: any[] | null = null;
+                let currentItem: any = null;
+
+                for (let i = 0; i < fmLines.length; i++) {
+                    const fLine = fmLines[i];
+                    const trimmed = fLine.trim();
+                    if (!trimmed || trimmed.startsWith('#')) continue;
+
+                    // Check if line is indented property under an existing list item
+                    if (currentList && currentItem && /^\s{4,}/.test(fLine)) {
+                        const colonIdx = trimmed.indexOf(':');
+                        if (colonIdx > 0) {
+                            const subKey = trimmed.substring(0, colonIdx).trim();
+                            const subVal = trimmed.substring(colonIdx + 1).trim();
+                            currentItem[subKey] = this.parseScalar(subVal);
+                        }
+                        continue;
+                    }
+
+                    // Check if line is a list item: "  - ..."
+                    if (currentList && /^\s*-\s*/.test(fLine)) {
+                        const afterDash = trimmed.replace(/^-\s*/, '').trim();
+                        const colonIdx = afterDash.indexOf(':');
+                        if (colonIdx > 0) {
+                            const subKey = afterDash.substring(0, colonIdx).trim();
+                            const subVal = afterDash.substring(colonIdx + 1).trim();
+                            currentItem = { [subKey]: this.parseScalar(subVal) };
+                            currentList.push(currentItem);
+                        } else {
+                            currentItem = null;
+                            currentList.push(this.parseScalar(afterDash));
+                        }
+                        continue;
+                    }
+
+                    // Top-level key
                     const colonIdx = fLine.indexOf(':');
                     if (colonIdx > 0) {
                         const key = fLine.substring(0, colonIdx).trim();
                         const val = fLine.substring(colonIdx + 1).trim();
-                        if (val === 'true') frontmatter[key] = true;
-                        else if (val === 'false') frontmatter[key] = false;
-                        else if (!isNaN(Number(val)) && val !== '') frontmatter[key] = Number(val);
-                        else frontmatter[key] = val.replace(/^['"](.*)['"]$/, '$1');
+                        if (val === '') {
+                            currentList = [];
+                            currentItem = null;
+                            frontmatter[key] = currentList;
+                        } else {
+                            currentList = null;
+                            currentItem = null;
+                            frontmatter[key] = this.parseScalar(val);
+                        }
                     }
                 }
             }

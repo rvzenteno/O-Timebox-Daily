@@ -467,3 +467,266 @@ test('8. Performance Benchmark: 1,000 tasks schedule in < 100ms', () => {
     assert.ok(duration < 200, `1,000 tasks scheduled in ${duration.toFixed(2)}ms (must be < 200ms)`);
 });
 
+test('9. Presentation Isolation: stripTaskCheckbox & stripProjectMetadata prevents duplicate checkboxes and cleans Timebox view', () => {
+    // 1. Single and duplicate checkboxes
+    assert.strictEqual(MarkdownAdapter.stripTaskCheckbox('- [ ] Concept Design'), 'Concept Design');
+    assert.strictEqual(MarkdownAdapter.stripTaskCheckbox('- [ ] - [ ] Concept Design'), 'Concept Design');
+    assert.strictEqual(MarkdownAdapter.stripTaskCheckbox('- [x] - [ ] > - [ ] Concept Design'), 'Concept Design');
+    assert.strictEqual(MarkdownAdapter.stripTaskCheckbox('   - [ ]   Indented Task'), 'Indented Task');
+
+    // 2. Full PM metadata task string
+    const rawPMTask = '- [ ] - [ ] Concept Design 🛫 2026-09-15 📅 2026-09-28 ⏳ 10d dependsOn:: 2 @John(100%) [costCode::ENG-101] [desc:: Initial wireframes] #milestone';
+    const cleanTimeboxTask = MarkdownAdapter.stripProjectMetadata(rawPMTask);
+
+    assert.strictEqual(cleanTimeboxTask, 'Concept Design');
+    assert.ok(!cleanTimeboxTask.includes('🛫'));
+    assert.ok(!cleanTimeboxTask.includes('📅'));
+    assert.ok(!cleanTimeboxTask.includes('⏳'));
+    assert.ok(!cleanTimeboxTask.includes('dependsOn::'));
+    assert.ok(!cleanTimeboxTask.includes('@John'));
+    assert.ok(!cleanTimeboxTask.includes('[costCode::'));
+    assert.ok(!cleanTimeboxTask.includes('#milestone'));
+
+    // 3. Timebox wikilink preservation
+    const taskWithLink = '- [ ] Review [[Project Alpha]] specification 🛫 2026-09-15 📅 2026-09-18';
+    assert.strictEqual(MarkdownAdapter.stripProjectMetadata(taskWithLink), 'Review [[Project Alpha]] specification');
+});
+
+test('10. Resource CRUD & Frontmatter Persistence: Parsing and serialization of resource definitions', () => {
+    const rawMarkdown = `---
+title: Resource Test Project
+resources:
+  - id: dev-alice
+    name: Alice Designer
+    type: Work
+    maxUnits: 100%
+    workingHoursPerDay: 8
+    ratePerHour: 75
+    costPerUse: 50
+    notes: Lead UI Designer
+  - id: dev-bob
+    name: Bob Part-Time
+    type: Work
+    maxUnits: 50%
+    workingHoursPerDay: 4
+    ratePerHour: 60
+  - id: server-license
+    name: Cloud Server License
+    type: Cost
+    maxUnits: 1.0
+    costPerUse: 500
+---
+
+# Resource Test Project
+
+- [ ] Task 1 @dev-alice 🛫 2026-09-14 📅 2026-09-16
+- [ ] Task 2 @dev-bob 🛫 2026-09-14 📅 2026-09-15
+`;
+
+    const project = MarkdownAdapter.parseProject('res-test.md', 'Resource Test Project', rawMarkdown);
+
+    assert.strictEqual(project.resources.length, 3);
+
+    const alice = project.resources.find(r => r.id === 'dev-alice');
+    assert.ok(alice);
+    assert.strictEqual(alice.name, 'Alice Designer');
+    assert.strictEqual(alice.type, 'Work');
+    assert.strictEqual(alice.maxUnits, 1.0);
+    assert.strictEqual(alice.workingHoursPerDay, 8);
+    assert.strictEqual(alice.ratePerHour, 75);
+    assert.strictEqual(alice.costPerUse, 50);
+    assert.strictEqual(alice.notes, 'Lead UI Designer');
+
+    const bob = project.resources.find(r => r.id === 'dev-bob');
+    assert.ok(bob);
+    assert.strictEqual(bob.name, 'Bob Part-Time');
+    assert.strictEqual(bob.maxUnits, 0.5);
+    assert.strictEqual(bob.workingHoursPerDay, 4);
+    assert.strictEqual(bob.ratePerHour, 60);
+
+    const license = project.resources.find(r => r.id === 'server-license');
+    assert.ok(license);
+    assert.strictEqual(license.type, 'Cost');
+    assert.strictEqual(license.costPerUse, 500);
+});
+
+test('11. Resource Engine: Non-8-hour resource calculations & part-time 4h calendar capacity', () => {
+    // Bob works 4 hours per day
+    const bobResource: ResourceDefinition = {
+        id: 'bob',
+        name: 'Bob (Part-Time)',
+        type: 'Work',
+        maxUnits: 1.0,
+        workingHoursPerDay: 4,
+        ratePerHour: 50
+    };
+
+    // Two concurrent tasks scheduled on Monday, each assigned to Bob (4h + 4h = 8h work)
+    const task1: NormalizedTask = createMockTask({
+        id: 'task-1',
+        title: 'Morning Part-Time Task',
+        durationDays: 1,
+        assignments: [{ resourceId: 'bob', units: 1.0 }]
+    });
+
+    const task2: NormalizedTask = createMockTask({
+        id: 'task-2',
+        title: 'Afternoon Part-Time Task',
+        durationDays: 1,
+        assignments: [{ resourceId: 'bob', units: 1.0 }]
+    });
+
+    const project = createMockProject([task1, task2], [], undefined, [bobResource], '2026-09-14');
+    const scheduled = SchedulingEngine.schedule(project);
+
+    // Calculate daily allocations
+    const allocations = ResourceEngine.calculateDailyAllocations(
+        scheduled,
+        'bob',
+        '2026-09-14',
+        '2026-09-18'
+    );
+
+    assert.strictEqual(allocations.length, 5); // Mon-Fri
+    const mondayAlloc = allocations.find(a => a.date === '2026-09-14');
+    assert.ok(mondayAlloc);
+    // Capacity must reflect 4 hours, NOT 8 hours
+    assert.strictEqual(mondayAlloc.capacityHours, 4, 'Daily capacity must reflect Bob 4h working day');
+    assert.strictEqual(mondayAlloc.assignedHours, 8, 'Assigned 8h on Monday');
+    assert.strictEqual(mondayAlloc.utilizationPercent, 200, 'Utilization must be 200%');
+    assert.strictEqual(mondayAlloc.isOverAllocated, true, 'Must flag over-allocation');
+
+    // Tuesday should be 0h work, 4h capacity, 0% utilization
+    const tuesdayAlloc = allocations.find(a => a.date === '2026-09-15');
+    assert.ok(tuesdayAlloc);
+    assert.strictEqual(tuesdayAlloc.capacityHours, 4);
+    assert.strictEqual(tuesdayAlloc.assignedHours, 0);
+    assert.strictEqual(tuesdayAlloc.utilizationPercent, 0);
+    assert.strictEqual(tuesdayAlloc.isOverAllocated, false);
+});
+
+test('12. Resource Usage: Time-phased daily allocation with task-level breakdown', () => {
+    const alice: ResourceDefinition = {
+        id: 'alice',
+        name: 'Alice',
+        type: 'Work',
+        maxUnits: 1.0,
+        workingHoursPerDay: 8
+    };
+
+    const taskA = createMockTask({
+        id: 'task-a',
+        title: 'Task Alpha',
+        durationDays: 2,
+        assignments: [{ resourceId: 'alice', units: 1.0 }]
+    });
+
+    const taskB = createMockTask({
+        id: 'task-b',
+        title: 'Task Beta',
+        durationDays: 1,
+        assignments: [{ resourceId: 'alice', units: 1.0 }]
+    });
+
+    const project = createMockProject([taskA, taskB], [], undefined, [alice], '2026-09-14');
+    const scheduled = SchedulingEngine.schedule(project);
+
+    const allocations = ResourceEngine.calculateDailyAllocations(
+        scheduled,
+        'alice',
+        '2026-09-14',
+        '2026-09-18'
+    );
+
+    const mon = allocations.find(a => a.date === '2026-09-14');
+    assert.ok(mon);
+    assert.ok(mon.taskWork);
+    assert.strictEqual(mon.taskWork.length, 2, 'Both Task Alpha and Beta on Monday');
+
+    const taskAWork = mon.taskWork.find(tw => tw.taskId === 'task-a');
+    assert.ok(taskAWork);
+    assert.strictEqual(taskAWork.taskTitle, 'Task Alpha');
+    assert.strictEqual(taskAWork.hours, 8);
+
+    const taskBWork = mon.taskWork.find(tw => tw.taskId === 'task-b');
+    assert.ok(taskBWork);
+    assert.strictEqual(taskBWork.taskTitle, 'Task Beta');
+    assert.strictEqual(taskBWork.hours, 8);
+
+    assert.strictEqual(mon.assignedHours, 16);
+    assert.strictEqual(mon.capacityHours, 8);
+    assert.strictEqual(mon.isOverAllocated, true);
+});
+
+test('13. Bidirectional Synchronization: Markdown task completion update preserves all PM metadata', () => {
+    const rawTaskLine = '- [ ] Concept Design 🛫 2026-09-15 📅 2026-09-28 ⏳ 10d dependsOn:: 2 @John [costCode::ENG-101]';
+    
+    // Check clean title matches daily note task
+    const cleanDailyNoteTitle = 'Concept Design';
+    const parsedCleanTitle = MarkdownAdapter.stripProjectMetadata(rawTaskLine);
+    assert.strictEqual(parsedCleanTitle, cleanDailyNoteTitle);
+
+    // Toggle completion to checked: - [ ] -> - [x]
+    const updatedLine = rawTaskLine.replace(/^(\s*[-*]\s*\[)[ xX](\])/, '$1x$2');
+    
+    // Verify checked state
+    assert.ok(updatedLine.startsWith('- [x] Concept Design'));
+    
+    // Verify ALL original metadata tokens were completely preserved
+    assert.ok(updatedLine.includes('🛫 2026-09-15'));
+    assert.ok(updatedLine.includes('📅 2026-09-28'));
+    assert.ok(updatedLine.includes('⏳ 10d'));
+    assert.ok(updatedLine.includes('dependsOn:: 2'));
+    assert.ok(updatedLine.includes('@John'));
+    assert.ok(updatedLine.includes('[costCode::ENG-101]'));
+});
+
+test('14. Scale Benchmark: 1,000 tasks with realistic resource assignments schedule and detect conflicts in < 250ms', () => {
+    const resources: ResourceDefinition[] = [];
+    for (let r = 1; r <= 20; r++) {
+        resources.push({
+            id: `res-${r}`,
+            name: `Resource #${r}`,
+            type: 'Work',
+            maxUnits: 1.0,
+            workingHoursPerDay: 8,
+            ratePerHour: 50 + r * 5
+        });
+    }
+
+    const tasks: NormalizedTask[] = [];
+    const dependencies: TaskDependency[] = [];
+
+    for (let i = 1; i <= 1000; i++) {
+        const assignedResId = `res-${(i % 20) + 1}`;
+        tasks.push(createMockTask({
+            id: String(i),
+            title: `Enterprise Task #${i}`,
+            durationDays: (i % 3) + 1,
+            assignments: [{ resourceId: assignedResId, units: 1.0 }]
+        }));
+
+        if (i > 1 && i % 4 !== 0) {
+            dependencies.push({
+                id: `dep-${i}`,
+                fromTaskId: String(i - 1),
+                toTaskId: String(i),
+                type: 'FS',
+                lag: 0
+            });
+        }
+    }
+
+    const project = createMockProject(tasks, dependencies, undefined, resources);
+
+    const start = performance.now();
+    const scheduled = SchedulingEngine.schedule(project);
+    const conflicts = ResourceEngine.detectOverAllocations(scheduled);
+    const duration = performance.now() - start;
+
+    assert.strictEqual(scheduled.tasks.length, 1000);
+    assert.ok(Array.isArray(conflicts));
+    assert.ok(duration < 250, `1,000 tasks with 20 resources scheduled and analyzed in ${duration.toFixed(2)}ms (target < 250ms)`);
+});
+
+

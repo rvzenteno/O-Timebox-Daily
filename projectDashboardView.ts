@@ -384,8 +384,9 @@ export class ProjectDashboardView extends ItemView {
             })();
         });
 
-        // Task Text
-        taskRowEl.createSpan({ cls: 'timebox-task-text', text: task.text });
+        // Task Text (Clean presentation boundary: strips PM metadata)
+        const displayTitle = task.cleanTitle || ProjectManager.stripProjectMetadata(task.text);
+        taskRowEl.createSpan({ cls: 'timebox-task-text', text: displayTitle });
 
         // Subtask Count Badge (e.g. 1/3)
         if (hasSubtasks) {
@@ -410,7 +411,7 @@ export class ProjectDashboardView extends ItemView {
             e.stopPropagation();
             void (async () => {
                 await this.projectManager.addProjectTaskToToday(
-                    task.text,
+                    displayTitle,
                     proj.file,
                     this.plugin.settings.timeBoxFolder,
                     this.plugin.settings.dateFormat
@@ -481,7 +482,8 @@ export class ProjectDashboardView extends ItemView {
                     })();
                 });
 
-                subtaskRow.createSpan({ cls: 'timebox-subtask-text', text: subtask.text });
+                const subDisplayTitle = subtask.cleanTitle || ProjectManager.stripProjectMetadata(subtask.text);
+                subtaskRow.createSpan({ cls: 'timebox-subtask-text', text: subDisplayTitle });
 
                 const subDeleteBtn = subtaskRow.createEl('button', {
                     cls: 'timebox-task-icon-btn timebox-delete-btn',
