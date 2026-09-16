@@ -298,20 +298,36 @@ export class SchedulingEngine {
             }
 
             // Baseline variance comparison
-            if (project.activeBaselineId && project.baselines[project.activeBaselineId]) {
+            if (project.activeBaselineId && project.baselines && project.baselines[project.activeBaselineId]) {
                 const base = project.baselines[project.activeBaselineId].tasks[task.wbsCode] 
                     || project.baselines[project.activeBaselineId].tasks[task.id];
                 if (base) {
                     task.baseline = base;
-                    const startVar = calendar.calculateWorkingDays(base.start, task.calculatedStart) - 1;
-                    const finishVar = calendar.calculateWorkingDays(base.finish, task.calculatedFinish) - 1;
-                    const durVar = task.durationDays - base.duration;
-                    const workVar = task.workHours - base.work;
+
+                    let startVar = 0;
+                    if (task.calculatedStart > base.start) {
+                        startVar = calendar.calculateWorkingDays(base.start, task.calculatedStart) - 1;
+                    } else if (task.calculatedStart < base.start) {
+                        startVar = -(calendar.calculateWorkingDays(task.calculatedStart, base.start) - 1);
+                    }
+
+                    let finishVar = 0;
+                    if (task.calculatedFinish > base.finish) {
+                        finishVar = calendar.calculateWorkingDays(base.finish, task.calculatedFinish) - 1;
+                    } else if (task.calculatedFinish < base.finish) {
+                        finishVar = -(calendar.calculateWorkingDays(task.calculatedFinish, base.finish) - 1);
+                    }
+
+                    const baseDur = base.durationDays !== undefined ? base.durationDays : base.duration;
+                    const baseWork = base.workHours !== undefined ? base.workHours : base.work;
+
+                    const durVar = task.durationDays - baseDur;
+                    const workVar = task.workHours - baseWork;
                     const costVar = task.cost - base.cost;
 
                     task.variance = {
-                        startVariance: task.calculatedStart >= base.start ? startVar : -startVar,
-                        finishVariance: task.calculatedFinish >= base.finish ? finishVar : -finishVar,
+                        startVariance: startVar,
+                        finishVariance: finishVar,
                         durationVariance: durVar,
                         workVariance: workVar,
                         costVariance: costVar
@@ -376,31 +392,50 @@ export class SchedulingEngine {
 
     /**
      * Create and store a baseline snapshot from current calculated/scheduled state.
+     * Supports Baseline 0 through Baseline 10.
      */
     static saveBaseline(
         project: NormalizedProject,
-        baselineId: string = 'baseline0',
-        baselineName: string = 'Baseline 0'
+        baselineId: string = '0',
+        baselineName?: string
     ): NormalizedProject {
         if (!project.baselines) project.baselines = {};
 
         const taskBaselines: Record<string, TaskBaseline> = {};
+        let totalBaseWork = 0;
+        let totalBaseCost = 0;
+
         for (const task of project.tasks) {
-            taskBaselines[task.id] = {
+            const taskBase: TaskBaseline = {
                 start: task.calculatedStart,
                 finish: task.calculatedFinish,
                 duration: task.durationDays,
+                durationDays: task.durationDays,
                 work: task.workHours,
+                workHours: task.workHours,
                 cost: task.cost
             };
+            taskBaselines[task.id] = taskBase;
+            if (task.wbsCode) {
+                taskBaselines[task.wbsCode] = taskBase;
+            }
+            if (!task.isSummary) {
+                totalBaseWork += task.workHours;
+                totalBaseCost += task.cost;
+            }
         }
+
+        const cleanId = String(baselineId).replace(/^baseline/i, '');
+        const name = baselineName || `Baseline ${cleanId}`;
 
         project.baselines[baselineId] = {
             id: baselineId,
-            name: baselineName,
+            name,
             savedAt: new Date().toISOString(),
             tasks: taskBaselines
         };
+        (project.baselines[baselineId] as any).totalWorkHours = totalBaseWork;
+        (project.baselines[baselineId] as any).totalCost = totalBaseCost;
         project.activeBaselineId = baselineId;
 
         return project;

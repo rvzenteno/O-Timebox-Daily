@@ -599,9 +599,9 @@ export class ProjectManager {
     }
 
     /**
-     * Save a baseline snapshot into project frontmatter.
+     * Save a baseline snapshot into project frontmatter. Supports Baseline 0 through 10.
      */
-    async saveProjectBaseline(projectFile: TFile, baselineId: string = 'baseline0', baselineName: string = 'Baseline 0'): Promise<void> {
+    async saveProjectBaseline(projectFile: TFile, baselineId: string = '0', baselineName?: string): Promise<void> {
         const content = await this.app.vault.read(projectFile);
         const normalized = MarkdownAdapter.parseProject(projectFile.path, projectFile.basename, content);
         const scheduled = SchedulingEngine.schedule(normalized);
@@ -611,6 +611,51 @@ export class ProjectManager {
             if (!frontmatter['baselines']) frontmatter['baselines'] = {};
             frontmatter['baselines'][baselineId] = updated.baselines[baselineId];
             frontmatter['activeBaselineId'] = baselineId;
+        });
+        this.markInternalModification(projectFile.path);
+    }
+
+    /**
+     * Change the active baseline comparison in project frontmatter.
+     */
+    async setActiveBaseline(projectFile: TFile, baselineId?: string): Promise<void> {
+        await this.app.fileManager.processFrontMatter(projectFile, (frontmatter) => {
+            if (baselineId) {
+                frontmatter['activeBaselineId'] = baselineId;
+            } else {
+                delete frontmatter['activeBaselineId'];
+            }
+        });
+        this.markInternalModification(projectFile.path);
+    }
+
+    /**
+     * Delete a baseline snapshot from project frontmatter.
+     */
+    async deleteProjectBaseline(projectFile: TFile, baselineId: string): Promise<void> {
+        await this.app.fileManager.processFrontMatter(projectFile, (frontmatter) => {
+            if (frontmatter['baselines'] && frontmatter['baselines'][baselineId]) {
+                delete frontmatter['baselines'][baselineId];
+            }
+            if (frontmatter['activeBaselineId'] === baselineId) {
+                const remaining = Object.keys(frontmatter['baselines'] || {});
+                if (remaining.length > 0) {
+                    frontmatter['activeBaselineId'] = remaining[0];
+                } else {
+                    delete frontmatter['activeBaselineId'];
+                }
+            }
+        });
+        this.markInternalModification(projectFile.path);
+    }
+
+    /**
+     * Clear all baselines from project frontmatter.
+     */
+    async clearAllBaselines(projectFile: TFile): Promise<void> {
+        await this.app.fileManager.processFrontMatter(projectFile, (frontmatter) => {
+            delete frontmatter['baselines'];
+            delete frontmatter['activeBaselineId'];
         });
         this.markInternalModification(projectFile.path);
     }

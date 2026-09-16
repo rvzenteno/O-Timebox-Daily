@@ -815,5 +815,90 @@ calendars:
     assert.strictEqual(cal.isWorkingDay('2026-10-09'), true, 'Exception Friday is working');
 });
 
+test('17. Multi-Baseline Management: Baseline 0..10 snapshots, immutability, and signed variance math', () => {
+    const res: ResourceDefinition = {
+        id: 'r1',
+        name: 'Engineer',
+        type: 'Work',
+        maxUnits: 1.0,
+        workingHoursPerDay: 8,
+        ratePerHour: 50
+    };
+
+    const task1 = createMockTask({
+        id: 'task-1',
+        title: 'Foundations',
+        userStart: '2026-09-14',
+        durationDays: 2,
+        assignments: [{ resourceId: 'r1', units: 1.0 }]
+    });
+
+    const project = createMockProject([task1], [], undefined, [res], '2026-09-14');
+    const scheduled1 = SchedulingEngine.schedule(project);
+
+    assert.strictEqual(scheduled1.tasks[0].calculatedStart, '2026-09-14');
+    assert.strictEqual(scheduled1.tasks[0].calculatedFinish, '2026-09-15');
+    assert.strictEqual(scheduled1.tasks[0].workHours, 16);
+    assert.strictEqual(scheduled1.tasks[0].cost, 800);
+
+    // Save Baseline 0 (Contract Approval)
+    SchedulingEngine.saveBaseline(scheduled1, '0', 'Baseline 0 - Contract Approval');
+    assert.ok(scheduled1.baselines['0']);
+    assert.strictEqual(scheduled1.baselines['0'].name, 'Baseline 0 - Contract Approval');
+    assert.strictEqual(scheduled1.baselines['0'].tasks['task-1'].start, '2026-09-14');
+    assert.strictEqual(scheduled1.baselines['0'].tasks['task-1'].finish, '2026-09-15');
+    assert.strictEqual(scheduled1.baselines['0'].tasks['task-1'].duration, 2);
+    assert.strictEqual(scheduled1.baselines['0'].tasks['task-1'].work, 16);
+    assert.strictEqual(scheduled1.baselines['0'].tasks['task-1'].cost, 800);
+
+    // Now schedule slips: duration expands to 4 days, starting 1 day late (Tuesday 2026-09-15)
+    // Finishes Friday 2026-09-18
+    task1.userStart = '2026-09-15';
+    task1.durationDays = 4;
+    task1.schedulingMode = 'manual';
+
+    const scheduled2 = SchedulingEngine.schedule(scheduled1);
+
+    // 1. IMMUTABILITY CHECK: Baseline 0 snapshot must remain unchanged!
+    assert.strictEqual(scheduled2.baselines['0'].tasks['task-1'].start, '2026-09-14', 'Baseline start must be immutable');
+    assert.strictEqual(scheduled2.baselines['0'].tasks['task-1'].finish, '2026-09-15', 'Baseline finish must be immutable');
+    assert.strictEqual(scheduled2.baselines['0'].tasks['task-1'].duration, 2, 'Baseline duration must be immutable');
+
+    // 2. VARIANCE CHECK against Baseline 0:
+    // Started 1 day late: startVariance = +1
+    // Finished 3 days late (Friday vs Tuesday): finishVariance = +3
+    // Duration +2 days: durationVariance = +2
+    // Work +16h (32h vs 16h): workVariance = +16
+    // Cost +$800 ($1600 vs $800): costVariance = +800
+    const v = scheduled2.tasks[0].variance;
+    assert.ok(v, 'Variance must be calculated');
+    assert.strictEqual(v.startVariance, 1, 'Start variance +1 day late');
+    assert.strictEqual(v.finishVariance, 3, 'Finish variance +3 days late');
+    assert.strictEqual(v.durationVariance, 2, 'Duration variance +2 days');
+    assert.strictEqual(v.workVariance, 16, 'Work variance +16h');
+    assert.strictEqual(v.costVariance, 800, 'Cost variance +$800');
+
+    // Save Baseline 1 (Mid-project re-baseline)
+    SchedulingEngine.saveBaseline(scheduled2, '1', 'Baseline 1 - Revised Target');
+    assert.ok(scheduled2.baselines['1']);
+    assert.strictEqual(scheduled2.activeBaselineId, '1');
+
+    // Re-schedule with active baseline = 1: variances should now be 0 relative to Baseline 1
+    const scheduled3 = SchedulingEngine.schedule(scheduled2);
+    const v3 = scheduled3.tasks[0].variance;
+    assert.ok(v3);
+    assert.strictEqual(v3.startVariance, 0);
+    assert.strictEqual(v3.finishVariance, 0);
+    assert.strictEqual(v3.durationVariance, 0);
+    assert.strictEqual(v3.workVariance, 0);
+    assert.strictEqual(v3.costVariance, 0);
+
+    // Switch back to active baseline = 0: variances reflect comparison against Baseline 0 again
+    scheduled3.activeBaselineId = '0';
+    const scheduled4 = SchedulingEngine.schedule(scheduled3);
+    assert.strictEqual(scheduled4.tasks[0].variance?.finishVariance, 3);
+});
+
+
 
 

@@ -6,6 +6,7 @@ import { ProjectCalendar } from './projectCalendar';
 import { ProjectCommandManager } from './projectCommandManager';
 import { MarkdownAdapter } from './markdownAdapter';
 import { ProjectSettingsModal } from './projectSettingsModal';
+import { BaselineModal } from './baselineModal';
 import TimeBoxPlugin from './main';
 
 export const TIMEBOX_GANTT_VIEW_TYPE = 'timebox-gantt-view';
@@ -906,18 +907,19 @@ export class ProjectGanttView extends ItemView {
             void this.render();
         });
 
-        const saveBaseBtn = baselineGroup.createEl('button', {
+        const manageBaseBtn = baselineGroup.createEl('button', {
             cls: 'timebox-gantt-toggle-btn',
-            text: 'Set Baseline'
+            text: 'Baselines...'
         });
-        saveBaseBtn.title = 'Snapshot current schedule as Baseline 0';
-        saveBaseBtn.addEventListener('click', () => {
-            void (async () => {
-                await this.projectManager.saveProjectBaseline(projectData.file, 'baseline0');
-                new Notice('Saved current schedule as Baseline 0');
-                this.showBaselines = true;
-                void this.render();
-            })();
+        manageBaseBtn.title = 'Manage Baseline 0-10 snapshots and variance comparison';
+        manageBaseBtn.addEventListener('click', () => {
+            new BaselineModal(
+                this.app,
+                projectData.file,
+                projectData,
+                this.projectManager,
+                () => void this.render()
+            ).open();
         });
 
         // Right controls: Add Task, Add Subtask, Task Info, Refresh

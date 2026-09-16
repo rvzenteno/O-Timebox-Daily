@@ -2515,3 +2515,55 @@ body.is-resizing-gantt-splitter {
     background: var(--background-modifier-hover);
 }
 
+/* ==========================================================================
+   Phase 2: Baseline Management Modal Styles
+   ========================================================================== */
+
+.timebox-baseline-modal {
+    padding: 12px 16px;
+    max-width: 720px;
+}
+
+.timebox-baseline-active-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    background: var(--background-secondary);
+    border-radius: 6px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.timebox-baseline-active-banner label {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-normal);
+}
+
+.timebox-baseline-active-banner select {
+    flex: 1;
+    max-width: 380px;
+}
+
+.timebox-baseline-capture-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.timebox-baseline-capture-bar select {
+    min-width: 140px;
+}
+
+.timebox-baseline-capture-bar input[type="text"] {
+    flex: 1;
+}
+
+.timebox-text-muted {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+
