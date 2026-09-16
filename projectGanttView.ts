@@ -1,6 +1,6 @@
 import { ItemView, WorkspaceLeaf, TFile, setIcon, Menu, Notice, Modal, App, moment } from 'obsidian';
 import { ProjectManager, ProjectData, ProjectTask, WorkingCalendar } from './projectManager';
-import { ValidationIssue, ResourceDefinition, ResourceType, CalendarDefinition } from './projectModel';
+import { ValidationIssue, ResourceDefinition, ResourceType, CalendarDefinition, TaskVariance } from './projectModel';
 import { ResourceEngine, ResourceUsageSummary } from './resourceEngine';
 import { ProjectCalendar } from './projectCalendar';
 import { ProjectCommandManager } from './projectCommandManager';
@@ -8,6 +8,8 @@ import { MarkdownAdapter } from './markdownAdapter';
 import { ProjectSettingsModal } from './projectSettingsModal';
 import { BaselineModal } from './baselineModal';
 import { StatusDateModal } from './statusDateModal';
+import { ALL_TASKSHEET_COLUMNS, DEFAULT_TASKSHEET_COLUMNS } from './taskSheetModel';
+import { ColumnVisibilityModal } from './columnVisibilityModal';
 import TimeBoxPlugin from './main';
 
 export const TIMEBOX_GANTT_VIEW_TYPE = 'timebox-gantt-view';
@@ -52,6 +54,7 @@ interface FlattenedGanttRow {
     forecastFinish?: string;
     description?: string;
     workingIntervals: Array<{ start: string; end: string }>;
+    variance?: TaskVariance;
 }
 
 
@@ -1129,7 +1132,8 @@ export class ProjectGanttView extends ItemView {
                 forecastStart: parentTask.forecastStart,
                 forecastFinish: parentTask.forecastFinish,
                 description: parentTask.description,
-                workingIntervals: parentTask.workingIntervals || (parentTask.startDate && parentTask.dueDate ? WorkingCalendar.getWorkingIntervals(parentTask.startDate, parentTask.dueDate) : [])
+                workingIntervals: parentTask.workingIntervals || (parentTask.startDate && parentTask.dueDate ? WorkingCalendar.getWorkingIntervals(parentTask.startDate, parentTask.dueDate) : []),
+                variance: parentTask.variance
             });
 
             if (isParent) {
@@ -1167,7 +1171,8 @@ export class ProjectGanttView extends ItemView {
                         forecastStart: subtask.forecastStart,
                         forecastFinish: subtask.forecastFinish,
                         description: subtask.description,
-                        workingIntervals: subtask.workingIntervals || (subtask.startDate && subtask.dueDate ? WorkingCalendar.getWorkingIntervals(subtask.startDate, subtask.dueDate) : [])
+                        workingIntervals: subtask.workingIntervals || (subtask.startDate && subtask.dueDate ? WorkingCalendar.getWorkingIntervals(subtask.startDate, subtask.dueDate) : []),
+                        variance: subtask.variance
                     });
                 });
             }
@@ -2591,6 +2596,30 @@ export class ProjectGanttView extends ItemView {
         }
     }
 
+    private getTaskSheetVisibleColumns(): string[] {
+        if (this.plugin?.settings?.taskSheetVisibleColumns && this.plugin.settings.taskSheetVisibleColumns.length > 0) {
+            return this.plugin.settings.taskSheetVisibleColumns;
+        }
+        try {
+            const cached = localStorage.getItem('timebox-tasksheet-columns');
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch {}
+        return DEFAULT_TASKSHEET_COLUMNS;
+    }
+
+    private async saveTaskSheetVisibleColumns(cols: string[]): Promise<void> {
+        if (this.plugin?.settings) {
+            this.plugin.settings.taskSheetVisibleColumns = cols;
+            await this.plugin.saveSettings();
+        }
+        try {
+            localStorage.setItem('timebox-tasksheet-columns', JSON.stringify(cols));
+        } catch {}
+    }
+
     private renderTaskSheet(container: HTMLElement, projectData: ProjectData, rows: FlattenedGanttRow[]): void {
         const sheetEl = container.createDiv({ cls: 'timebox-task-sheet-pane' });
 
@@ -2608,10 +2637,28 @@ export class ProjectGanttView extends ItemView {
         });
         addSubBtn.addEventListener('click', () => void this.createNewTask(projectData, true));
 
+        const colBtn = actionToolbar.createEl('button', {
+            cls: 'timebox-gantt-action-btn',
+            text: '👁️ Columns'
+        });
+        colBtn.addEventListener('click', () => {
+            new ColumnVisibilityModal(
+                this.app,
+                this.getTaskSheetVisibleColumns(),
+                async (cols) => {
+                    await this.saveTaskSheetVisibleColumns(cols);
+                    this.render();
+                }
+            ).open();
+        });
+
         actionToolbar.createSpan({
             cls: 'timebox-sheet-info-text',
             text: `${rows.length} Tasks | ${projectData.completedCount} Completed | ${projectData.progressPercent}% Overall Progress`
         });
+
+        const visibleColIds = this.getTaskSheetVisibleColumns();
+        const activeCols = ALL_TASKSHEET_COLUMNS.filter(c => visibleColIds.includes(c.id));
 
         // Table Wrapper
         const tableWrapper = sheetEl.createDiv({ cls: 'timebox-task-sheet-wrapper' });
@@ -2619,27 +2666,9 @@ export class ProjectGanttView extends ItemView {
 
         const thead = table.createEl('thead');
         const headerRow = thead.createEl('tr');
-        const headers = [
-            { text: '#', width: '50px' },
-            { text: 'Done', width: '45px' },
-            { text: 'Task Name', width: '280px' },
-            { text: 'Description', width: '180px' },
-            { text: 'Start', width: '105px' },
-            { text: 'Due', width: '105px' },
-            { text: 'Dur', width: '60px' },
-            { text: 'Work', width: '60px' },
-            { text: 'Total Float', width: '80px' },
-            { text: 'Free Float', width: '75px' },
-            { text: 'Predecessors', width: '110px' },
-            { text: 'Resource', width: '110px' },
-            { text: '% Complete', width: '85px' },
-            { text: 'Critical', width: '70px' },
-            { text: '', width: '50px' }
-        ];
-
-        for (const h of headers) {
-            const th = headerRow.createEl('th', { text: h.text });
-            th.setCssStyles({ width: h.width });
+        for (const col of activeCols) {
+            const th = headerRow.createEl('th', { text: col.label });
+            th.setCssStyles({ width: col.width });
         }
 
         const tbody = table.createEl('tbody');
@@ -2659,95 +2688,198 @@ export class ProjectGanttView extends ItemView {
                 ).open();
             });
 
-            // 1. WBS
-            tr.createEl('td', { cls: 'col-wbs', text: row.wbsCode });
-
-            // 2. Checkbox
-            const checkTd = tr.createEl('td', { cls: 'col-check' });
-            const chk = checkTd.createEl('input', { type: 'checkbox' });
-            chk.checked = row.task.completed;
-            chk.disabled = row.isBlocked && !row.task.completed;
-            if (row.isBlocked && !row.task.completed) {
-                checkTd.title = 'Locked: predecessors incomplete';
+            for (const col of activeCols) {
+                switch (col.id) {
+                    case 'wbs':
+                        tr.createEl('td', { cls: 'col-wbs', text: row.wbsCode });
+                        break;
+                    case 'status': {
+                        const checkTd = tr.createEl('td', { cls: 'col-check' });
+                        const chk = checkTd.createEl('input', { type: 'checkbox' });
+                        chk.checked = row.task.completed;
+                        chk.disabled = row.isBlocked && !row.task.completed;
+                        if (row.isBlocked && !row.task.completed) {
+                            checkTd.title = 'Locked: predecessors incomplete';
+                        }
+                        chk.addEventListener('change', () => {
+                            void (async () => {
+                                await this.projectManager.toggleProjectTaskCompletion(projectData.file, row.task.lineIndex, chk.checked);
+                                void this.render();
+                            })();
+                        });
+                        break;
+                    }
+                    case 'name': {
+                        const nameTd = tr.createEl('td', { cls: 'col-name' });
+                        const indentPx = row.isSubtask ? 20 : 0;
+                        nameTd.setCssStyles({ paddingLeft: `${10 + indentPx}px` });
+                        nameTd.createSpan({ cls: 'timebox-sheet-task-title', text: row.task.cleanTitle });
+                        if (row.isMilestone) {
+                            nameTd.createSpan({ cls: 'timebox-sheet-milestone-badge', text: '◆ Milestone' });
+                        }
+                        break;
+                    }
+                    case 'description':
+                        tr.createEl('td', { cls: 'col-desc', text: row.description || '-' });
+                        break;
+                    case 'startDate':
+                        tr.createEl('td', { cls: 'col-start', text: row.startDate || row.plannedStart || '-' });
+                        break;
+                    case 'dueDate':
+                        tr.createEl('td', { cls: 'col-due', text: row.dueDate || row.plannedFinish || '-' });
+                        break;
+                    case 'duration':
+                        tr.createEl('td', { cls: 'col-dur', text: `${row.durationDays}d` });
+                        break;
+                    case 'work':
+                        tr.createEl('td', { cls: 'col-work', text: `${row.workHours}h` });
+                        break;
+                    case 'actualStart':
+                        tr.createEl('td', { cls: 'col-actual-start', text: row.actualStart || '-' });
+                        break;
+                    case 'actualFinish':
+                        tr.createEl('td', { cls: 'col-actual-finish', text: row.actualFinish || '-' });
+                        break;
+                    case 'actualWork':
+                        tr.createEl('td', { cls: 'col-actual-work', text: row.actualWork !== undefined ? `${row.actualWork}h` : '-' });
+                        break;
+                    case 'forecastStart':
+                        tr.createEl('td', { cls: 'col-forecast-start', text: row.forecastStart || '-' });
+                        break;
+                    case 'forecastFinish': {
+                        const ffTd = tr.createEl('td', { cls: 'col-forecast-finish' });
+                        if (row.forecastFinish) {
+                            const isSlip = row.dueDate && row.forecastFinish > row.dueDate;
+                            ffTd.createSpan({
+                                cls: isSlip ? 'timebox-forecast-slip' : '',
+                                text: row.forecastFinish
+                            });
+                        } else {
+                            ffTd.setText('-');
+                        }
+                        break;
+                    }
+                    case 'baselineStart':
+                        tr.createEl('td', { cls: 'col-baseline-start', text: row.baselineStart || '-' });
+                        break;
+                    case 'baselineFinish':
+                        tr.createEl('td', { cls: 'col-baseline-finish', text: row.baselineFinish || '-' });
+                        break;
+                    case 'startVariance': {
+                        const svTd = tr.createEl('td', { cls: 'col-var-start' });
+                        const sv = row.task.variance?.startVariance;
+                        if (sv !== undefined) {
+                            const sign = sv > 0 ? `+${sv}d` : `${sv}d`;
+                            const cls = sv > 0 ? 'timebox-variance-late' : (sv < 0 ? 'timebox-variance-early' : 'timebox-variance-zero');
+                            svTd.createSpan({ cls, text: sign });
+                        } else {
+                            svTd.setText('-');
+                        }
+                        break;
+                    }
+                    case 'finishVariance': {
+                        const fvTd = tr.createEl('td', { cls: 'col-var-finish' });
+                        const fv = row.task.variance?.finishVariance;
+                        if (fv !== undefined) {
+                            const sign = fv > 0 ? `+${fv}d` : `${fv}d`;
+                            const cls = fv > 0 ? 'timebox-variance-late' : (fv < 0 ? 'timebox-variance-early' : 'timebox-variance-zero');
+                            fvTd.createSpan({ cls, text: sign });
+                        } else {
+                            fvTd.setText('-');
+                        }
+                        break;
+                    }
+                    case 'durationVariance': {
+                        const dvTd = tr.createEl('td', { cls: 'col-var-dur' });
+                        const dv = row.task.variance?.durationVariance;
+                        if (dv !== undefined) {
+                            const sign = dv > 0 ? `+${dv}d` : `${dv}d`;
+                            const cls = dv > 0 ? 'timebox-variance-late' : (dv < 0 ? 'timebox-variance-early' : 'timebox-variance-zero');
+                            dvTd.createSpan({ cls, text: sign });
+                        } else {
+                            dvTd.setText('-');
+                        }
+                        break;
+                    }
+                    case 'workVariance': {
+                        const wvTd = tr.createEl('td', { cls: 'col-var-work' });
+                        const wv = row.task.variance?.workVariance;
+                        if (wv !== undefined) {
+                            const sign = wv > 0 ? `+${wv}h` : `${wv}h`;
+                            const cls = wv > 0 ? 'timebox-variance-late' : (wv < 0 ? 'timebox-variance-early' : 'timebox-variance-zero');
+                            wvTd.createSpan({ cls, text: sign });
+                        } else {
+                            wvTd.setText('-');
+                        }
+                        break;
+                    }
+                    case 'costVariance': {
+                        const cvTd = tr.createEl('td', { cls: 'col-var-cost' });
+                        const cv = row.task.variance?.costVariance;
+                        if (cv !== undefined) {
+                            const sign = cv > 0 ? `+$${cv}` : (cv < 0 ? `-$${Math.abs(cv)}` : '$0');
+                            const cls = cv > 0 ? 'timebox-variance-late' : (cv < 0 ? 'timebox-variance-early' : 'timebox-variance-zero');
+                            cvTd.createSpan({ cls, text: sign });
+                        } else {
+                            cvTd.setText('-');
+                        }
+                        break;
+                    }
+                    case 'predecessors':
+                        tr.createEl('td', { cls: 'col-pred', text: row.predecessors.join(', ') || '-' });
+                        break;
+                    case 'resource': {
+                        const resTd = tr.createEl('td', { cls: 'col-res' });
+                        if (row.resource) {
+                            resTd.createSpan({ cls: 'timebox-sheet-resource-badge', text: `@${row.resource}` });
+                        } else {
+                            resTd.setText('-');
+                        }
+                        break;
+                    }
+                    case 'percentComplete': {
+                        const compTd = tr.createEl('td', { cls: 'col-pct' });
+                        compTd.createSpan({ text: `${row.percentComplete}%` });
+                        break;
+                    }
+                    case 'totalFloat': {
+                        const tfTd = tr.createEl('td', { cls: 'col-float' });
+                        if (row.totalFloat === 0 && !row.task.completed) {
+                            tfTd.createSpan({ cls: 'timebox-float-badge is-zero', text: '0d' });
+                        } else {
+                            tfTd.setText(`${row.totalFloat}d`);
+                        }
+                        break;
+                    }
+                    case 'freeFloat':
+                        tr.createEl('td', { cls: 'col-free-float', text: `${row.freeFloat}d` });
+                        break;
+                    case 'critical': {
+                        const critTd = tr.createEl('td', { cls: 'col-crit' });
+                        if (row.isCritical && !row.task.completed) {
+                            critTd.createSpan({ cls: 'timebox-critical-badge', text: '⚡ YES' });
+                        } else {
+                            critTd.setText('-');
+                        }
+                        break;
+                    }
+                    case 'actions': {
+                        const actTd = tr.createEl('td', { cls: 'col-act' });
+                        const editBtn = actTd.createEl('button', { cls: 'timebox-task-icon-btn', title: 'Edit details' });
+                        setIcon(editBtn, 'sliders');
+                        editBtn.addEventListener('click', () => {
+                            new TaskInformationModal(
+                                this.app,
+                                projectData.file,
+                                row.task,
+                                this.projectManager,
+                                () => void this.render()
+                            ).open();
+                        });
+                        break;
+                    }
+                }
             }
-            chk.addEventListener('change', () => {
-                void (async () => {
-                    await this.projectManager.toggleProjectTaskCompletion(projectData.file, row.task.lineIndex, chk.checked);
-                    void this.render();
-                })();
-            });
-
-            // 3. Task Name
-            const nameTd = tr.createEl('td', { cls: 'col-name' });
-            const indentPx = row.isSubtask ? 20 : 0;
-            nameTd.setCssStyles({ paddingLeft: `${10 + indentPx}px` });
-            nameTd.createSpan({ cls: 'timebox-sheet-task-title', text: row.task.cleanTitle });
-            if (row.isMilestone) {
-                nameTd.createSpan({ cls: 'timebox-sheet-milestone-badge', text: '◆ Milestone' });
-            }
-
-            // 4. Description
-            tr.createEl('td', { cls: 'col-desc', text: row.description || '-' });
-
-            // 5. Start
-            tr.createEl('td', { cls: 'col-start', text: row.startDate || '-' });
-
-            // 6. Due
-            tr.createEl('td', { cls: 'col-due', text: row.dueDate || '-' });
-
-            // 7. Duration
-            tr.createEl('td', { cls: 'col-dur', text: `${row.durationDays}d` });
-
-            // 8. Work
-            tr.createEl('td', { cls: 'col-work', text: `${row.workHours}h` });
-
-            // 9. Total Float
-            const tfTd = tr.createEl('td', { cls: 'col-float' });
-            if (row.totalFloat === 0 && !row.task.completed) {
-                tfTd.createSpan({ cls: 'timebox-float-badge is-zero', text: '0d' });
-            } else {
-                tfTd.setText(`${row.totalFloat}d`);
-            }
-
-            // 10. Free Float
-            tr.createEl('td', { cls: 'col-free-float', text: `${row.freeFloat}d` });
-
-            // 11. Predecessors
-            tr.createEl('td', { cls: 'col-pred', text: row.predecessors.join(', ') || '-' });
-
-            // 12. Resource
-            const resTd = tr.createEl('td', { cls: 'col-res' });
-            if (row.resource) {
-                resTd.createSpan({ cls: 'timebox-sheet-resource-badge', text: `@${row.resource}` });
-            } else {
-                resTd.setText('-');
-            }
-
-            // 13. % Complete
-            const compTd = tr.createEl('td', { cls: 'col-pct' });
-            compTd.createSpan({ text: `${row.percentComplete}%` });
-
-            // 14. Critical
-            const critTd = tr.createEl('td', { cls: 'col-crit' });
-            if (row.isCritical && !row.task.completed) {
-                critTd.createSpan({ cls: 'timebox-critical-badge', text: '⚡ YES' });
-            } else {
-                critTd.setText('-');
-            }
-
-            // 15. Actions
-            const actTd = tr.createEl('td', { cls: 'col-act' });
-            const editBtn = actTd.createEl('button', { cls: 'timebox-task-icon-btn', title: 'Edit details' });
-            setIcon(editBtn, 'sliders');
-            editBtn.addEventListener('click', () => {
-                new TaskInformationModal(
-                    this.app,
-                    projectData.file,
-                    row.task,
-                    this.projectManager,
-                    () => void this.render()
-                ).open();
-            });
         });
     }
 

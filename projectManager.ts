@@ -1,5 +1,5 @@
 import { App, TFile, TFolder, Notice, Editor, moment } from 'obsidian';
-import { NormalizedProject, NormalizedTask, ProjectBaseline, ResourceDefinition } from './projectModel';
+import { NormalizedProject, NormalizedTask, ProjectBaseline, ResourceDefinition, TaskVariance } from './projectModel';
 import { MarkdownAdapter } from './markdownAdapter';
 import { SchedulingEngine } from './schedulingEngine';
 import { ProjectValidator } from './projectValidator';
@@ -150,6 +150,7 @@ export interface ProjectTask {
     forecastFinish?: string;
     remainingDurationDays?: number;
     remainingWorkHours?: number;
+    variance?: TaskVariance;
 }
 
 export interface ProjectData {
@@ -598,6 +599,7 @@ export class ProjectManager {
                     pt.forecastFinish = nt.forecastFinish;
                     pt.remainingDurationDays = nt.remainingDurationDays;
                     pt.remainingWorkHours = nt.remainingWorkHours;
+                    pt.variance = nt.variance;
                 }
                 for (const sub of pt.subtasks) {
                     syncTaskWithNormalized(sub);

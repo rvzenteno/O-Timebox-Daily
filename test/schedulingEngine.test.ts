@@ -20,6 +20,13 @@ import {
     CalendarDefinition,
     ResourceDefinition
 } from '../projectModel';
+import {
+    ALL_TASKSHEET_COLUMNS,
+    DEFAULT_TASKSHEET_COLUMNS,
+    PRESET_EXECUTION_COLUMNS,
+    PRESET_VARIANCE_COLUMNS,
+    PRESET_FLOAT_COLUMNS
+} from '../taskSheetModel';
 
 function createMockTask(partial: Partial<NormalizedTask> & { id: string; title: string }): NormalizedTask {
     const durationDays = partial.durationDays !== undefined ? partial.durationDays : (partial.isMilestone ? 0 : 1);
@@ -1018,4 +1025,74 @@ statusDate: "2026-09-15"
     assert.ok(serialized.includes('[actualFinish:: 2026-09-04]'), 'Serialized actualFinish');
     assert.ok(serialized.includes('[actualWork:: 32h]'), 'Serialized actualWork');
     assert.ok(serialized.includes('statusDate: "2026-09-15"') || serialized.includes('statusDate: 2026-09-15'));
+});
+
+test('19. Phase 4: Task Sheet Customization, Column Visibility, & Preference Isolation', () => {
+    // 1. Column Registry Validation
+    const allColIds = ALL_TASKSHEET_COLUMNS.map(c => c.id);
+    
+    // Core & Structure
+    assert.ok(allColIds.includes('wbs'), 'WBS column registered');
+    assert.ok(allColIds.includes('status'), 'Status column registered');
+    assert.ok(allColIds.includes('name'), 'Name column registered');
+    assert.ok(allColIds.includes('description'), 'Description column registered');
+    assert.ok(allColIds.includes('actions'), 'Actions column registered');
+
+    // Planned Schedule
+    assert.ok(allColIds.includes('startDate'), 'Planned Start column registered');
+    assert.ok(allColIds.includes('dueDate'), 'Planned Due column registered');
+    assert.ok(allColIds.includes('duration'), 'Duration column registered');
+    assert.ok(allColIds.includes('work'), 'Work column registered');
+    assert.ok(allColIds.includes('predecessors'), 'Predecessors column registered');
+    assert.ok(allColIds.includes('resource'), 'Resource column registered');
+
+    // Execution & Actuals
+    assert.ok(allColIds.includes('actualStart'), 'Actual Start column registered');
+    assert.ok(allColIds.includes('actualFinish'), 'Actual Finish column registered');
+    assert.ok(allColIds.includes('actualWork'), 'Actual Work column registered');
+    assert.ok(allColIds.includes('forecastStart'), 'Forecast Start column registered');
+    assert.ok(allColIds.includes('forecastFinish'), 'Forecast Finish column registered');
+    assert.ok(allColIds.includes('percentComplete'), '% Complete column registered');
+
+    // Baseline & Variance
+    assert.ok(allColIds.includes('baselineStart'), 'Baseline Start column registered');
+    assert.ok(allColIds.includes('baselineFinish'), 'Baseline Finish column registered');
+    assert.ok(allColIds.includes('startVariance'), 'Start Variance column registered');
+    assert.ok(allColIds.includes('finishVariance'), 'Finish Variance column registered');
+    assert.ok(allColIds.includes('durationVariance'), 'Duration Variance column registered');
+    assert.ok(allColIds.includes('workVariance'), 'Work Variance column registered');
+    assert.ok(allColIds.includes('costVariance'), 'Cost Variance column registered');
+
+    // Analysis & Float
+    assert.ok(allColIds.includes('totalFloat'), 'Total Float column registered');
+    assert.ok(allColIds.includes('freeFloat'), 'Free Float column registered');
+    assert.ok(allColIds.includes('critical'), 'Critical column registered');
+
+    // 2. Presets Integrity
+    const validatePreset = (name: string, cols: string[]) => {
+        for (const colId of cols) {
+            assert.ok(allColIds.includes(colId), `${name} column ${colId} exists in registry`);
+        }
+    };
+    validatePreset('DEFAULT_TASKSHEET_COLUMNS', DEFAULT_TASKSHEET_COLUMNS);
+    validatePreset('PRESET_EXECUTION_COLUMNS', PRESET_EXECUTION_COLUMNS);
+    validatePreset('PRESET_VARIANCE_COLUMNS', PRESET_VARIANCE_COLUMNS);
+    validatePreset('PRESET_FLOAT_COLUMNS', PRESET_FLOAT_COLUMNS);
+
+    // 3. Separation & Non-Pollution Verification:
+    // Ensure column preferences are completely independent of project Markdown serialization.
+    const rawMarkdown = `---
+title: "Clean Project"
+---
+
+- [ ] Task 1 🛫 2026-09-01 📅 2026-09-05 ⏳ 5d
+`;
+    const project = MarkdownAdapter.parseProject('Clean.md', 'Clean', rawMarkdown);
+    const scheduled = SchedulingEngine.schedule(project);
+    const serialized = MarkdownAdapter.serializeProject(scheduled, rawMarkdown);
+
+    // Assert that column preferences do NOT appear in the project markdown or frontmatter
+    assert.ok(!serialized.includes('taskSheetVisibleColumns'), 'No column preferences in markdown');
+    assert.ok(!serialized.includes('visibleColumns'), 'No UI preferences in markdown');
+    assert.ok(!serialized.includes('ALL_TASKSHEET_COLUMNS'), 'No column metadata in markdown');
 });

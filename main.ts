@@ -24,6 +24,7 @@ export interface TimeBoxSettings {
     dateFormat: string;
     rolloverMergeMode: 'section' | 'merge';
     addNavigationLinks: boolean;
+    taskSheetVisibleColumns?: string[];
 }
 
 const DEFAULT_SETTINGS: TimeBoxSettings = {
@@ -41,7 +42,21 @@ const DEFAULT_SETTINGS: TimeBoxSettings = {
     carryForwardBrainDumps: true,
     dateFormat: 'YYYY-MM-DD',
     rolloverMergeMode: 'section',
-    addNavigationLinks: true
+    addNavigationLinks: true,
+    taskSheetVisibleColumns: [
+        'wbs',
+        'status',
+        'name',
+        'startDate',
+        'dueDate',
+        'duration',
+        'work',
+        'predecessors',
+        'resource',
+        'percentComplete',
+        'critical',
+        'actions'
+    ]
 };
 
 export default class TimeBoxPlugin extends Plugin {

@@ -1731,6 +1731,134 @@ body.is-resizing-gantt-splitter {
     font-weight: 700;
 }
 
+/* Variance and Forecast Badges */
+.timebox-variance-late {
+    color: var(--text-error, #ef4444);
+    font-weight: 600;
+}
+
+.timebox-variance-early {
+    color: var(--text-success, #10b981);
+    font-weight: 600;
+}
+
+.timebox-variance-zero {
+    color: var(--text-muted);
+}
+
+.timebox-forecast-slip {
+    color: var(--text-error, #f87171);
+    font-weight: 600;
+}
+
+/* Column Customization Modal */
+.timebox-column-modal {
+    max-width: 720px;
+    width: 90vw;
+}
+
+.timebox-column-presets-container {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--background-secondary);
+    border-radius: 6px;
+    margin-bottom: 12px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.timebox-column-preset-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.timebox-column-preset-btn {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.timebox-column-preset-btn:hover {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border-color: var(--interactive-accent);
+}
+
+.timebox-column-groups-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 55vh;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.timebox-column-group {
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    padding: 10px 12px;
+}
+
+.timebox-column-group-title {
+    margin: 0 0 8px 0;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+}
+
+.timebox-column-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+}
+
+.timebox-column-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: var(--background-primary);
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.timebox-column-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.timebox-column-name {
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+.timebox-column-desc {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-left: 20px;
+    line-height: 1.2;
+}
+
+.timebox-column-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 14px;
+}
+
 .timebox-sheet-resource-badge {
     background: var(--background-secondary-alt);
     border: 1px solid var(--background-modifier-border);
