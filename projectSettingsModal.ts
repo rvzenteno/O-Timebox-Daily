@@ -12,6 +12,7 @@ export class ProjectSettingsModal extends Modal {
     private titleInput!: HTMLInputElement;
     private startDateInput!: HTMLInputElement;
     private deadlineInput!: HTMLInputElement;
+    private statusDateInput!: HTMLInputElement;
     private scheduleModeSelect!: HTMLSelectElement;
     private startTaskSelect!: HTMLSelectElement;
     private activeCalendarSelect!: HTMLSelectElement;
@@ -62,6 +63,14 @@ export class ProjectSettingsModal extends Modal {
         this.deadlineInput = deadlineRow.createEl('input', {
             type: 'date',
             value: this.projectData.normalizedProject?.projectDeadline || ''
+        });
+
+        // Status Date (Project Controls)
+        const statusRow = form.createDiv({ cls: 'timebox-form-row' });
+        statusRow.createEl('label', { text: 'Project Status Date (Controls):' });
+        this.statusDateInput = statusRow.createEl('input', {
+            type: 'date',
+            value: this.projectData.statusDate || this.projectData.normalizedProject?.statusDate || ''
         });
 
         // Scheduling Direction
@@ -139,6 +148,7 @@ export class ProjectSettingsModal extends Modal {
         const title = this.titleInput.value.trim();
         const projectStartDate = this.startDateInput.value.trim() || undefined;
         const deadline = this.deadlineInput.value.trim() || undefined;
+        const statusDate = this.statusDateInput.value.trim() || undefined;
         const scheduleMode = this.scheduleModeSelect.value as 'forward' | 'backward';
         const startTaskNumber = parseInt(this.startTaskSelect.value, 10) || 1;
         const activeCalendarId = this.activeCalendarSelect.value;
@@ -147,6 +157,7 @@ export class ProjectSettingsModal extends Modal {
             title,
             projectStartDate,
             deadline,
+            statusDate,
             scheduleMode,
             startTaskNumber,
             activeCalendarId

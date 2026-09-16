@@ -141,6 +141,15 @@ export interface ProjectTask {
     description?: string;
     baselineStart?: string;
     baselineFinish?: string;
+    plannedStart?: string;
+    plannedFinish?: string;
+    actualStart?: string;
+    actualFinish?: string;
+    actualWork?: number;
+    forecastStart?: string;
+    forecastFinish?: string;
+    remainingDurationDays?: number;
+    remainingWorkHours?: number;
 }
 
 export interface ProjectData {
@@ -153,6 +162,8 @@ export interface ProjectData {
     progressPercent: number;
     projectStartDate?: string;
     projectDueDate?: string;
+    statusDate?: string;
+    forecastFinishDate?: string;
     hasProjectTitleTask?: boolean;
     startTaskNumber?: number;
     normalizedProject?: NormalizedProject;
@@ -205,6 +216,10 @@ export class ProjectManager {
         resource?: string;
         predecessors: string[];
         description?: string;
+        actualStart?: string;
+        actualFinish?: string;
+        actualWork?: number;
+        percentComplete?: number;
     } {
         const startMatch = text.match(/🛫\s*(\d{4}-\d{2}-\d{2})/);
         const dueMatch = text.match(/📅\s*(\d{4}-\d{2}-\d{2})/);
@@ -216,6 +231,16 @@ export class ProjectManager {
 
         const descMatch = text.match(/\[desc::\s*([^\]]+)\]/i) || text.match(/📝\s*([^\n🛫📅⏳@#\[]+)/);
         const description = descMatch ? descMatch[1].trim() : undefined;
+
+        const actualStartMatch = text.match(/\[actualStart::\s*(\d{4}-\d{2}-\d{2})\]/i);
+        const actualFinishMatch = text.match(/\[actualFinish::\s*(\d{4}-\d{2}-\d{2})\]/i);
+        const actualWorkMatch = text.match(/\[actualWork::\s*(\d+(?:\.\d+)?)\s*h?\]/i);
+        const progressMatch = text.match(/\[%::\s*(\d+)\]/i) || text.match(/\[progress::\s*(\d+)%?\]/i);
+
+        const actualStart = actualStartMatch ? actualStartMatch[1] : undefined;
+        const actualFinish = actualFinishMatch ? actualFinishMatch[1] : undefined;
+        const actualWork = actualWorkMatch ? parseFloat(actualWorkMatch[1]) : undefined;
+        const percentComplete = progressMatch ? parseInt(progressMatch[1], 10) : undefined;
 
         const predMatch = text.match(/dependsOn::\s*#?([0-9a-zA-Z.,_+\-\s#]+)/i) || text.match(/after:\s*#?([0-9a-zA-Z.,_+\-\s#]+)/i);
         const predecessors: string[] = [];
@@ -260,7 +285,11 @@ export class ProjectManager {
             cleanTitle,
             resource,
             predecessors,
-            description
+            description,
+            actualStart,
+            actualFinish,
+            actualWork,
+            percentComplete
         };
     }
 
@@ -560,6 +589,15 @@ export class ProjectManager {
                         pt.baselineStart = nt.baseline.start;
                         pt.baselineFinish = nt.baseline.finish;
                     }
+                    pt.plannedStart = nt.plannedStart || nt.calculatedStart;
+                    pt.plannedFinish = nt.plannedFinish || nt.calculatedFinish;
+                    pt.actualStart = nt.actualStart;
+                    pt.actualFinish = nt.actualFinish;
+                    pt.actualWork = nt.actualWorkHours !== undefined ? nt.actualWorkHours : nt.actualWork;
+                    pt.forecastStart = nt.forecastStart;
+                    pt.forecastFinish = nt.forecastFinish;
+                    pt.remainingDurationDays = nt.remainingDurationDays;
+                    pt.remainingWorkHours = nt.remainingWorkHours;
                 }
                 for (const sub of pt.subtasks) {
                     syncTaskWithNormalized(sub);
@@ -592,6 +630,8 @@ export class ProjectManager {
             progressPercent,
             projectStartDate,
             projectDueDate,
+            statusDate: normalizedProject?.statusDate,
+            forecastFinishDate: normalizedProject?.forecastFinishDate,
             hasProjectTitleTask,
             startTaskNumber,
             normalizedProject
@@ -1069,6 +1109,7 @@ created: ${getMoment().format('YYYY-MM-DD')}
             scheduleMode?: 'forward' | 'backward';
             startTaskNumber?: number;
             activeCalendarId?: string;
+            statusDate?: string;
         }
     ): Promise<void> {
         await this.app.fileManager.processFrontMatter(projectFile, (frontmatter) => {
@@ -1079,6 +1120,14 @@ created: ${getMoment().format('YYYY-MM-DD')}
                     frontmatter['deadline'] = settings.deadline;
                 } else {
                     delete frontmatter['deadline'];
+                }
+            }
+            if (settings.statusDate !== undefined) {
+                if (settings.statusDate) {
+                    frontmatter['statusDate'] = settings.statusDate;
+                } else {
+                    delete frontmatter['statusDate'];
+                    delete frontmatter['status_date'];
                 }
             }
             if (settings.scheduleMode !== undefined) frontmatter['scheduleMode'] = settings.scheduleMode;
@@ -1148,7 +1197,7 @@ created: ${getMoment().format('YYYY-MM-DD')}
     }
 
     /**
-     * Update full task details (title, dates, duration, resource, predecessors, milestone) in project file.
+     * Update full task details (title, dates, duration, resource, predecessors, milestone, actuals) in project file.
      */
     async updateTaskDetails(
         projectFile: TFile,
@@ -1163,6 +1212,10 @@ created: ${getMoment().format('YYYY-MM-DD')}
             predecessors?: string[];
             isMilestone?: boolean;
             completed?: boolean;
+            actualStart?: string;
+            actualFinish?: string;
+            actualWork?: number;
+            percentComplete?: number;
         }
     ): Promise<void> {
         const content = await this.app.vault.read(projectFile);
@@ -1189,6 +1242,10 @@ created: ${getMoment().format('YYYY-MM-DD')}
         const resource = updates.resource !== undefined ? updates.resource.trim() : currentParsed.resource;
         const predecessors = updates.predecessors !== undefined ? updates.predecessors : currentParsed.predecessors;
         const isMilestone = updates.isMilestone !== undefined ? updates.isMilestone : currentParsed.isMilestone;
+        const actualStart = updates.actualStart !== undefined ? updates.actualStart : currentParsed.actualStart;
+        const actualFinish = updates.actualFinish !== undefined ? updates.actualFinish : currentParsed.actualFinish;
+        const actualWork = updates.actualWork !== undefined ? updates.actualWork : currentParsed.actualWork;
+        const percentComplete = updates.percentComplete !== undefined ? updates.percentComplete : currentParsed.percentComplete;
 
         if (startDate) {
             startDate = WorkingCalendar.snapToWorkingDay(startDate);
@@ -1206,6 +1263,18 @@ created: ${getMoment().format('YYYY-MM-DD')}
         if (duration > 1 && !isMilestone) tokens.push(`⏳ ${duration}d`);
         if (resource) tokens.push(`@${resource.replace(/^@/, '')}`);
         if (predecessors && predecessors.length > 0) tokens.push(`dependsOn:: ${predecessors.join(', ')}`);
+        if (percentComplete !== undefined && percentComplete > 0 && percentComplete < 100) {
+            tokens.push(`[%:: ${percentComplete}]`);
+        }
+        if (actualStart) {
+            tokens.push(`[actualStart:: ${actualStart}]`);
+        }
+        if (actualFinish) {
+            tokens.push(`[actualFinish:: ${actualFinish}]`);
+        }
+        if (actualWork !== undefined && actualWork > 0) {
+            tokens.push(`[actualWork:: ${actualWork}h]`);
+        }
         if (description) tokens.push(`[desc:: ${description}]`);
         if (isMilestone) tokens.push(`#milestone`);
 
@@ -1214,6 +1283,21 @@ created: ${getMoment().format('YYYY-MM-DD')}
 
         this.markInternalModification(projectFile.path);
         await this.app.vault.modify(projectFile, lines.join('\n'));
+    }
+
+    /**
+     * Set or clear project status date in frontmatter.
+     */
+    async setStatusDate(projectFile: TFile, statusDate?: string): Promise<void> {
+        await this.app.fileManager.processFrontMatter(projectFile, (frontmatter) => {
+            if (statusDate) {
+                frontmatter['statusDate'] = statusDate;
+            } else {
+                delete frontmatter['statusDate'];
+                delete frontmatter['status_date'];
+            }
+        });
+        this.markInternalModification(projectFile.path);
     }
 
     /**

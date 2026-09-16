@@ -132,9 +132,13 @@ export interface NormalizedTask {
     priority: number;          // Priority 100-1000 (default 500)
     calendarId?: string;       // Task-specific calendar override
 
-    // 4. Engine-Calculated Dates (CPM Outputs)
+    // 4. Engine-Calculated Dates (CPM Outputs / Planned Intent)
     calculatedStart: string;   // Active scheduled start (YYYY-MM-DD)
     calculatedFinish: string;  // Active scheduled finish (YYYY-MM-DD)
+    plannedStart?: string;     // Planned CPM start without actuals
+    plannedFinish?: string;    // Planned CPM finish without actuals
+    plannedDurationDays?: number;
+    plannedWorkHours?: number;
     earlyStart: string;
     earlyFinish: string;
     lateStart: string;
@@ -144,23 +148,31 @@ export interface NormalizedTask {
     isCritical: boolean;       // True if totalFloat <= 0 on critical path
     isBlocked: boolean;        // True if predecessors are incomplete
 
-    // 5. Actuals (Tracking Execution)
+    // 5. Actuals (Tracking Execution - What Actually Happened)
     actualStart?: string;
     actualFinish?: string;
     actualDuration?: number;
+    actualDurationDays?: number;
     actualWork?: number;
+    actualWorkHours?: number;
     actualCost?: number;
 
-    // 6. Resources & Costing
+    // 6. Forecast (Projected Outcome from Status Date & Execution State)
+    forecastStart?: string;
+    forecastFinish?: string;
+    remainingDurationDays?: number;
+    remainingWorkHours?: number;
+
+    // 7. Resources & Costing
     assignments: ResourceAssignment[];
     cost: number;
     isOverAllocated?: boolean;
 
-    // 7. Baselines & Variance
+    // 8. Baselines & Variance
     baseline?: TaskBaseline;
     variance?: TaskVariance;
 
-    // 8. Markdown Preservation
+    // 9. Markdown Preservation
     customTokens?: string[];   // Any unknown tags/tokens to survive roundtrip
     rawLine?: string;          // Original line text for lossless editing
     lineCount: number;         // Number of source lines occupied (including notes)
@@ -183,6 +195,8 @@ export interface NormalizedProject {
     projectStartDate: string;
     projectFinishDate: string;
     projectDeadline?: string;
+    statusDate?: string;       // Configurable Project Status Date (independent of "Today")
+    forecastFinishDate?: string; // Projected project finish date based on execution actuals
     startTaskNumber: number; // 1 = standard, 2 = Task 1 is Title (WBS 0)
     totalWorkHours: number;
     totalCost: number;

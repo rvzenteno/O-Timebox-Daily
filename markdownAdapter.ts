@@ -18,7 +18,7 @@ export class MarkdownAdapter {
      */
     static stripTaskCheckbox(text: string): string {
         if (!text) return '';
-        return text.replace(/^(\s*(?:>\s*)?-\s*\[[ xX]\]\s*)+/g, '').trim();
+        return text.replace(/^(\s*(?:>\s*)?-\s*\[[ xX/]\]\s*)+/g, '').trim();
     }
 
     /**
@@ -43,6 +43,12 @@ export class MarkdownAdapter {
             .replace(/\[constraint::\s*[^\]]+\]/gi, '')             // Constraint bracket
             .replace(/\[deadline::\s*[^\]]+\]/gi, '')               // Deadline bracket
             .replace(/\[%::\s*[^\]]+\]/gi, '')                      // Progress bracket
+            .replace(/\[actualStart::\s*[^\]]+\]/gi, '')            // Actual Start bracket
+            .replace(/\[actualFinish::\s*[^\]]+\]/gi, '')           // Actual Finish bracket
+            .replace(/\[actualWork::\s*[^\]]+\]/gi, '')             // Actual Work bracket
+            .replace(/\[actualDuration::\s*[^\]]+\]/gi, '')         // Actual Duration bracket
+            .replace(/\[forecastStart::\s*[^\]]+\]/gi, '')          // Forecast Start bracket
+            .replace(/\[forecastFinish::\s*[^\]]+\]/gi, '')         // Forecast Finish bracket
             .replace(/#milestone\b/gi, '')                          // Milestone tag
             .replace(/<!--[\s\S]*?-->/g, '')                        // HTML comments
             .replace(/^(\s*(?:>\s*)?-\s*\[[ xX]\]\s*)+/g, '')      // second pass on checkboxes
@@ -66,6 +72,9 @@ export class MarkdownAdapter {
 
         const startTaskNumber = Number(frontmatter['startTaskNumber']) || (frontmatter['projectTitleTask'] ? 2 : 1);
         const projectDeadline = typeof frontmatter['deadline'] === 'string' ? frontmatter['deadline'] : undefined;
+        const statusDate = (typeof frontmatter['statusDate'] === 'string' && frontmatter['statusDate'])
+            ? frontmatter['statusDate']
+            : (typeof frontmatter['status_date'] === 'string' ? frontmatter['status_date'] : undefined);
         const schedulingDirection = frontmatter['scheduleMode'] === 'backward' ? 'backward' : 'forward';
 
         // Calendars
@@ -154,7 +163,7 @@ export class MarkdownAdapter {
             const leadingWhitespace = line.match(/^[\s\t]*/)?.[0] || '';
             const indentSpaces = leadingWhitespace.replace(/\t/g, '  ').length;
 
-            if (trimmed.startsWith('- [ ]') || trimmed.startsWith('- [x]') || trimmed.startsWith('- [X]')) {
+            if (trimmed.startsWith('- [ ]') || trimmed.startsWith('- [x]') || trimmed.startsWith('- [X]') || trimmed.startsWith('- [/]')) {
                 const parsedTask = this.parseTaskLine(line, i, indentSpaces, filePath, fileName);
 
                 // Determine hierarchy using indentation stack
@@ -220,6 +229,7 @@ export class MarkdownAdapter {
                 : (rawTasks[0]?.userStart || new Date().toISOString().slice(0, 10)),
             projectFinishDate: rawTasks[rawTasks.length - 1]?.userFinish || rawTasks[0]?.userStart || new Date().toISOString().slice(0, 10),
             projectDeadline,
+            statusDate,
             startTaskNumber,
             totalWorkHours: 0,
             totalCost: 0,
@@ -349,7 +359,8 @@ export class MarkdownAdapter {
     ): NormalizedTask {
         const trimmed = rawLine.trim();
         const completed = trimmed.startsWith('- [x]') || trimmed.startsWith('- [X]');
-        const textWithoutCheckbox = trimmed.replace(/^-\s*\[[ xX]\]\s*/, '');
+        const inProgress = trimmed.startsWith('- [/]');
+        const textWithoutCheckbox = trimmed.replace(/^-\s*\[[ xX/]\]\s*/, '');
 
         // Match standard tokens
         const startMatch = textWithoutCheckbox.match(/🛫\s*(\d{4}-\d{2}-\d{2})/);
@@ -361,7 +372,8 @@ export class MarkdownAdapter {
             || textWithoutCheckbox.match(/\[deadline::\s*(\d{4}-\d{2}-\d{2})\]/i);
 
         const progressMatch = textWithoutCheckbox.match(/\[%::\s*(\d+)\]/i) 
-            || textWithoutCheckbox.match(/\[progress::\s*(\d+)%?\]/i);
+            || textWithoutCheckbox.match(/\[progress::\s*(\d+)%?\]/i)
+            || textWithoutCheckbox.match(/(?:^|\s)(\d{1,3})%(?:\s|$|\])/);
 
         const priorityMatch = textWithoutCheckbox.match(/\[priority::\s*(\d+|high|medium|low)\]/i);
         let priority = 500;
@@ -376,36 +388,65 @@ export class MarkdownAdapter {
         const constraintType: ConstraintType = (constraintMatch ? constraintMatch[1].toLowerCase() : 'asap') as ConstraintType;
         const constraintDate = constraintMatch ? constraintMatch[2] : undefined;
 
+        // Actuals
+        const actualStartMatch = textWithoutCheckbox.match(/\[actualStart::\s*(\d{4}-\d{2}-\d{2})\]/i);
+        const actualFinishMatch = textWithoutCheckbox.match(/\[actualFinish::\s*(\d{4}-\d{2}-\d{2})\]/i);
+        const actualWorkMatch = textWithoutCheckbox.match(/\[actualWork::\s*(\d+(?:\.\d+)?)\s*h?\]/i);
+        const actualDurMatch = textWithoutCheckbox.match(/\[actualDuration::\s*(\d+(?:\.\d+)?)\s*d?\]/i);
+
+        const actualStart = actualStartMatch ? actualStartMatch[1] : undefined;
+        const actualFinish = actualFinishMatch ? actualFinishMatch[1] : undefined;
+        const actualWork = actualWorkMatch ? parseFloat(actualWorkMatch[1]) : undefined;
+        const actualDuration = actualDurMatch ? parseFloat(actualDurMatch[1]) : undefined;
+
         // Assigned resources: e.g. @Roberto, @Roberto:1.0, @Roberto:100%, [assigned:: @Roberto:100%, @Victor:50%]
         const assignments: ResourceAssignment[] = [];
-        const assignedTokenMatch = textWithoutCheckbox.match(/\[assigned::\s*([^\]]+)\]/i);
-        if (assignedTokenMatch) {
-            const parts = assignedTokenMatch[1].split(',');
-            for (const part of parts) {
-                const item = part.trim().replace(/^@/, '');
-                const colonIdx = item.indexOf(':');
-                if (colonIdx > 0) {
-                    const rName = item.substring(0, colonIdx).trim();
-                    const rawUnits = item.substring(colonIdx + 1).replace('%', '').trim();
-                    const rUnits = item.includes('%') ? (parseFloat(rawUnits) / 100 || 1.0) : (parseFloat(rawUnits) || 1.0);
-                    assignments.push({ resourceId: rName, units: rUnits });
-                } else if (item.length > 0) {
-                    assignments.push({ resourceId: item, units: 1.0 });
+        const inlineAssignments = textWithoutCheckbox.match(/@([a-zA-Z0-9_\-\.]+)(?::([0-9\.]+(?:%|h)?))?/g);
+        if (inlineAssignments) {
+            for (const item of inlineAssignments) {
+                const cleanItem = item.substring(1); // remove @
+                const parts = cleanItem.split(':');
+                const resourceId = parts[0].trim();
+                let units = 1.0;
+                if (parts.length > 1) {
+                    const unitStr = parts[1].trim();
+                    if (unitStr.endsWith('%')) {
+                        units = parseFloat(unitStr.replace('%', '')) / 100.0;
+                    } else if (unitStr.endsWith('h')) {
+                        units = parseFloat(unitStr.replace('h', '')) / 8.0;
+                    } else {
+                        const parsed = parseFloat(unitStr);
+                        if (!isNaN(parsed)) units = parsed;
+                    }
+                }
+                if (resourceId) {
+                    assignments.push({ resourceId, units });
                 }
             }
-        } else {
-            const atMatches = textWithoutCheckbox.match(/@([a-zA-Z0-9_\-\.]+)(?::([0-9\.]+)(?:%|h)?)?/g);
-            if (atMatches) {
-                for (const atM of atMatches) {
-                    const withoutAt = atM.substring(1);
-                    const colonIdx = withoutAt.indexOf(':');
-                    if (colonIdx > 0) {
-                        const rName = withoutAt.substring(0, colonIdx).trim();
-                        const rawUnits = withoutAt.substring(colonIdx + 1).replace('%', '').trim();
-                        const rUnits = atM.includes('%') ? (parseFloat(rawUnits) / 100 || 1.0) : (parseFloat(rawUnits) || 1.0);
-                        assignments.push({ resourceId: rName, units: isNaN(rUnits) ? 1.0 : rUnits });
-                    } else {
-                        assignments.push({ resourceId: withoutAt.trim(), units: 1.0 });
+        }
+
+        const tagAssignments = textWithoutCheckbox.match(/\[assigned::\s*([^\]]+)\]/i);
+        if (tagAssignments) {
+            const rawList = tagAssignments[1].split(',');
+            for (const item of rawList) {
+                const clean = item.trim().replace(/^@/, '');
+                if (clean) {
+                    const parts = clean.split(':');
+                    const resourceId = parts[0].trim();
+                    let units = 1.0;
+                    if (parts.length > 1) {
+                        const unitStr = parts[1].trim();
+                        if (unitStr.endsWith('%')) {
+                            units = parseFloat(unitStr.replace('%', '')) / 100.0;
+                        } else if (unitStr.endsWith('h')) {
+                            units = parseFloat(unitStr.replace('h', '')) / 8.0;
+                        } else {
+                            const parsed = parseFloat(unitStr);
+                            if (!isNaN(parsed)) units = parsed;
+                        }
+                    }
+                    if (resourceId && !assignments.some(a => a.resourceId === resourceId)) {
+                        assignments.push({ resourceId, units });
                     }
                 }
             }
@@ -420,7 +461,19 @@ export class MarkdownAdapter {
         const customTokenMatches = textWithoutCheckbox.match(/\[([a-zA-Z0-9_\-]+::\s*[^\]]+)\]/g);
         if (customTokenMatches) {
             for (const token of customTokenMatches) {
-                if (!token.startsWith('[desc::') && !token.startsWith('[assigned::') && !token.startsWith('[constraint::') && !token.startsWith('[%::') && !token.startsWith('[priority::') && !token.startsWith('[deadline::')) {
+                if (!token.startsWith('[desc::') && 
+                    !token.startsWith('[assigned::') && 
+                    !token.startsWith('[constraint::') && 
+                    !token.startsWith('[%::') && 
+                    !token.startsWith('[progress::') && 
+                    !token.startsWith('[priority::') && 
+                    !token.startsWith('[deadline::') &&
+                    !token.startsWith('[actualStart::') &&
+                    !token.startsWith('[actualFinish::') &&
+                    !token.startsWith('[actualWork::') &&
+                    !token.startsWith('[actualDuration::') &&
+                    !token.startsWith('[forecastStart::') &&
+                    !token.startsWith('[forecastFinish::')) {
                     customTokens.push(token);
                 }
             }
@@ -446,7 +499,7 @@ export class MarkdownAdapter {
 
         // Clean task title
         const cleanTitle = textWithoutCheckbox
-            .replace(/^(\s*-\s*\[[ xX]\]\s*)+/g, '')
+            .replace(/^(\s*-\s*\[[ xX/]\]\s*)+/g, '')
             .replace(/🛫\s*\d{4}-\d{2}-\d{2}/g, '')
             .replace(/📅\s*\d{4}-\d{2}-\d{2}/g, '')
             .replace(/⏳\s*\d+d?/g, '')
@@ -459,14 +512,21 @@ export class MarkdownAdapter {
             .replace(/\[constraint::\s*[^\]]+\]/gi, '')
             .replace(/\[%::\s*\d+\]/gi, '')
             .replace(/\[progress::\s*\d+%?\]/gi, '')
+            .replace(/\b\d{1,3}%\b/g, '')
             .replace(/\[priority::\s*[^\]]+\]/gi, '')
             .replace(/\[desc::\s*[^\]]+\]/gi, '')
             .replace(/📝\s*[^\n🛫📅⏳@#\[]+/g, '')
+            .replace(/\[actualStart::\s*[^\]]+\]/gi, '')
+            .replace(/\[actualFinish::\s*[^\]]+\]/gi, '')
+            .replace(/\[actualWork::\s*[^\]]+\]/gi, '')
+            .replace(/\[actualDuration::\s*[^\]]+\]/gi, '')
+            .replace(/\[forecastStart::\s*[^\]]+\]/gi, '')
+            .replace(/\[forecastFinish::\s*[^\]]+\]/gi, '')
             .replace(/#milestone\b/gi, '')
             .replace(/#[a-zA-Z0-9_\-]+/g, '')
             .replace(/<!--[\s\S]*?-->/g, '')
             .replace(/\[([a-zA-Z0-9_\-]+::\s*[^\]]+)\]/g, '')
-            .replace(/^(\s*-\s*\[[ xX]\]\s*)+/g, '')
+            .replace(/^(\s*-\s*\[[ xX/]\]\s*)+/g, '')
             .replace(/\s+/g, ' ')
             .trim();
 
@@ -476,7 +536,14 @@ export class MarkdownAdapter {
         let durationDays = durMatch ? parseInt(durMatch[1], 10) : 1;
         if (isMilestone) durationDays = 0;
 
-        const percentComplete = progressMatch ? parseInt(progressMatch[1], 10) : (completed ? 100 : 0);
+        let percentComplete = 0;
+        if (progressMatch) {
+            percentComplete = parseInt(progressMatch[1], 10);
+        } else if (completed) {
+            percentComplete = 100;
+        } else if (inProgress) {
+            percentComplete = 50;
+        }
 
         const taskId = `task-${lineIndex}`;
 
@@ -496,6 +563,16 @@ export class MarkdownAdapter {
             percentWorkComplete: percentComplete,
             userStart,
             userFinish,
+            plannedStart: userStart,
+            plannedFinish: userFinish,
+            plannedDurationDays: durationDays,
+            plannedWorkHours: durationDays * 8,
+            actualStart,
+            actualFinish,
+            actualWork,
+            actualWorkHours: actualWork,
+            actualDuration,
+            actualDurationDays: actualDuration,
             durationDays,
             workHours: durationDays * 8,
             taskType: 'fixed-duration',
@@ -651,6 +728,18 @@ export class MarkdownAdapter {
         // Progress
         if (task.percentComplete > 0 && task.percentComplete < 100) {
             tokens.push(`[%:: ${task.percentComplete}]`);
+        }
+
+        // Actuals
+        if (task.actualStart) {
+            tokens.push(`[actualStart:: ${task.actualStart}]`);
+        }
+        if (task.actualFinish) {
+            tokens.push(`[actualFinish:: ${task.actualFinish}]`);
+        }
+        const actWork = task.actualWorkHours !== undefined ? task.actualWorkHours : task.actualWork;
+        if (actWork !== undefined && actWork > 0) {
+            tokens.push(`[actualWork:: ${actWork}h]`);
         }
 
         // Description

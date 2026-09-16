@@ -156,6 +156,12 @@ export class SchedulingEngine {
             task.earlyFinish = duration > 0 ? calendar.addWorkingDays(task.earlyStart, duration) : task.earlyStart;
             task.calculatedFinish = task.earlyFinish;
             task.workingIntervals = calendar.getWorkingIntervals(task.calculatedStart, task.calculatedFinish);
+
+            // Establish Planned Schedule Intent (Never overwritten by Actuals or Status Date)
+            task.plannedStart = task.calculatedStart;
+            task.plannedFinish = task.calculatedFinish;
+            task.plannedDurationDays = task.durationDays;
+            task.plannedWorkHours = task.workHours || (task.durationDays * calendar.hoursPerDay);
         }
 
         // -------------------------------------------------------------
@@ -342,6 +348,11 @@ export class SchedulingEngine {
             ? Math.round((totalWorkCompleted / totalProjectWork) * 100)
             : 0;
 
+        // -------------------------------------------------------------
+        // STEP 7: FORECAST ENGINE (Projected Outcome from Status Date)
+        // -------------------------------------------------------------
+        this.calculateForecast(project, calendar, topoOrder, predecessorsMap);
+
         return project;
     }
 
@@ -373,21 +384,207 @@ export class SchedulingEngine {
                 totalChildProgress += (child.workHours || 1) * (child.percentComplete / 100);
             }
 
-            if (minStart) parent.calculatedStart = minStart;
-            if (maxFinish) parent.calculatedFinish = maxFinish;
+            if (minStart) {
+                parent.calculatedStart = minStart;
+                parent.plannedStart = minStart;
+            }
+            if (maxFinish) {
+                parent.calculatedFinish = maxFinish;
+                parent.plannedFinish = maxFinish;
+            }
 
             if (minStart && maxFinish) {
                 parent.durationDays = calendar.calculateWorkingDays(minStart, maxFinish);
+                parent.plannedDurationDays = parent.durationDays;
                 parent.earlyStart = parent.calculatedStart;
                 parent.earlyFinish = parent.calculatedFinish;
                 parent.workingIntervals = calendar.getWorkingIntervals(parent.calculatedStart, parent.calculatedFinish);
             }
 
+            parent.plannedWorkHours = totalChildWork;
             parent.percentComplete = totalChildWork > 0 
                 ? Math.round((totalChildProgress / totalChildWork) * 100)
                 : 0;
             parent.completed = parent.percentComplete === 100;
         }
+    }
+
+    /**
+     * Calculate forecast dates, remaining duration, and work based on execution actuals and status date.
+     * Guarantees that actuals and forecast never overwrite planned schedule or baseline.
+     */
+    private static calculateForecast(
+        project: NormalizedProject,
+        calendar: ProjectCalendar,
+        topoOrder: string[],
+        predecessorsMap: Map<string, TaskDependency[]>
+    ): void {
+        const statusDate = project.statusDate;
+
+        for (const taskId of topoOrder) {
+            const task = project.taskMap.get(taskId);
+            if (!task || task.isSummary) continue;
+
+            // Scenario 1: Completed Task
+            if (task.completed || task.percentComplete === 100 || Boolean(task.actualFinish)) {
+                task.forecastStart = task.actualStart || task.plannedStart || task.calculatedStart;
+                task.forecastFinish = task.actualFinish || task.plannedFinish || task.calculatedFinish;
+                task.remainingDurationDays = 0;
+                task.remainingWorkHours = 0;
+                if (task.actualWork === undefined) {
+                    task.actualWork = task.workHours;
+                    task.actualWorkHours = task.workHours;
+                }
+                if (task.actualDuration === undefined) {
+                    task.actualDuration = calendar.calculateWorkingDays(task.forecastStart, task.forecastFinish);
+                    task.actualDurationDays = task.actualDuration;
+                }
+                continue;
+            }
+
+            // Scenario 2: Partially Complete Task (in progress at status date)
+            if ((task.percentComplete > 0 && task.percentComplete < 100) || (task.actualStart && !task.actualFinish) || ((task.actualWorkHours || 0) > 0 && !task.actualFinish)) {
+                task.forecastStart = task.actualStart || task.plannedStart || task.calculatedStart;
+                let progress = task.percentComplete;
+                if (!progress || progress <= 0) {
+                    if (task.workHours > 0 && (task.actualWorkHours || 0) > 0) {
+                        progress = Math.min(99, Math.round(((task.actualWorkHours || 0) / task.workHours) * 100));
+                    } else {
+                        progress = 50;
+                    }
+                }
+                progress = Math.min(99, Math.max(1, progress));
+                const doneFraction = progress / 100;
+                const remDays = Math.max(1, Math.ceil(task.durationDays * (1 - doneFraction)));
+                task.remainingDurationDays = remDays;
+                
+                if (task.actualWorkHours !== undefined) {
+                    task.remainingWorkHours = Math.max(0, task.workHours - task.actualWorkHours);
+                } else {
+                    task.remainingWorkHours = Math.round(task.workHours * (1 - doneFraction));
+                }
+
+                if (task.actualWorkHours === undefined) {
+                    task.actualWork = Math.round(task.workHours * doneFraction);
+                    task.actualWorkHours = task.actualWork;
+                }
+
+                if (statusDate) {
+                    const statusSnap = calendar.snapToWorkingDay(statusDate, 'forward');
+                    const remAnchor = statusSnap >= task.forecastStart ? statusSnap : task.forecastStart;
+                    task.forecastFinish = remDays > 0 ? calendar.addWorkingDays(remAnchor, remDays) : remAnchor;
+                } else {
+                    task.forecastFinish = task.durationDays > 0 ? calendar.addWorkingDays(task.forecastStart, task.durationDays) : task.forecastStart;
+                }
+                continue;
+            }
+
+            // Scenario 3 & 4: Not Started Task
+            task.remainingDurationDays = task.durationDays;
+            task.remainingWorkHours = task.workHours;
+            if (task.actualWorkHours === undefined) {
+                task.actualWork = 0;
+                task.actualWorkHours = 0;
+            }
+            if (task.actualDurationDays === undefined) {
+                task.actualDuration = 0;
+                task.actualDurationDays = 0;
+            }
+
+            let candidateForecastStart = task.plannedStart || task.calculatedStart;
+
+            // Scenario 5: Respect dependency network using predecessor forecastFinish
+            const preds = predecessorsMap.get(task.id) || [];
+            for (const dep of preds) {
+                const pred = project.taskMap.get(dep.fromTaskId);
+                if (!pred) continue;
+
+                const predFinish = pred.forecastFinish || pred.calculatedFinish;
+                const predStart = pred.forecastStart || pred.calculatedStart;
+                const lag = dep.lag || 0;
+                let predCandidate = candidateForecastStart;
+
+                switch (dep.type) {
+                    case 'FS':
+                        predCandidate = calendar.stepWorkingDays(predFinish, 1 + lag);
+                        break;
+                    case 'SS':
+                        predCandidate = calendar.stepWorkingDays(predStart, lag);
+                        break;
+                    case 'FF': {
+                        const targetFinish = calendar.stepWorkingDays(predFinish, lag);
+                        const dur = task.isMilestone ? 0 : Math.max(1, task.durationDays);
+                        predCandidate = dur > 1 ? calendar.subtractWorkingDays(targetFinish, dur) : targetFinish;
+                        break;
+                    }
+                    case 'SF': {
+                        const targetFinish = calendar.stepWorkingDays(predStart, lag);
+                        const dur = task.isMilestone ? 0 : Math.max(1, task.durationDays);
+                        predCandidate = dur > 1 ? calendar.subtractWorkingDays(targetFinish, dur) : targetFinish;
+                        break;
+                    }
+                }
+
+                if (predCandidate > candidateForecastStart) {
+                    candidateForecastStart = predCandidate;
+                }
+            }
+
+            // Scenario 4: Task planned before status date but incomplete -> slips to status date
+            if (statusDate) {
+                const statusSnap = calendar.snapToWorkingDay(statusDate, 'forward');
+                if (candidateForecastStart < statusSnap) {
+                    candidateForecastStart = statusSnap;
+                }
+            }
+
+            task.forecastStart = candidateForecastStart;
+            const dur = task.isMilestone ? 0 : Math.max(1, task.durationDays);
+            task.forecastFinish = dur > 0 ? calendar.addWorkingDays(task.forecastStart, dur) : task.forecastStart;
+        }
+
+        // Roll up summary task forecasts bottom-up
+        const summaryTasks = project.tasks.filter(t => t.isSummary);
+        summaryTasks.sort((a, b) => b.depth - a.depth);
+
+        for (const parent of summaryTasks) {
+            const children = parent.childIds.map(id => project.taskMap.get(id)).filter(Boolean) as NormalizedTask[];
+            if (children.length === 0) continue;
+
+            let minFStart: string | null = null;
+            let maxFFinish: string | null = null;
+            let remWork = 0;
+            let actWork = 0;
+
+            for (const child of children) {
+                if (child.forecastStart && (!minFStart || child.forecastStart < minFStart)) {
+                    minFStart = child.forecastStart;
+                }
+                if (child.forecastFinish && (!maxFFinish || child.forecastFinish > maxFFinish)) {
+                    maxFFinish = child.forecastFinish;
+                }
+                remWork += child.remainingWorkHours || 0;
+                actWork += child.actualWork || 0;
+            }
+
+            if (minFStart) parent.forecastStart = minFStart;
+            if (maxFFinish) parent.forecastFinish = maxFFinish;
+            if (minFStart && maxFFinish) {
+                parent.remainingDurationDays = calendar.calculateWorkingDays(minFStart, maxFFinish);
+            }
+            parent.remainingWorkHours = remWork;
+            parent.actualWork = actWork;
+            parent.actualWorkHours = actWork;
+        }
+
+        // Calculate projected project finish date
+        let maxForecastFinish = project.projectFinishDate;
+        for (const task of project.tasks) {
+            if (task.forecastFinish && task.forecastFinish > maxForecastFinish) {
+                maxForecastFinish = task.forecastFinish;
+            }
+        }
+        project.forecastFinishDate = maxForecastFinish;
     }
 
     /**

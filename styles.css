@@ -2566,4 +2566,87 @@ body.is-resizing-gantt-splitter {
     font-style: italic;
 }
 
+/* Phase 3: Status Date, Forecast Slippage & Execution Tracking */
+.timebox-gantt-status-line {
+    stroke: var(--color-orange, #f59e0b);
+    stroke-width: 2px;
+    stroke-dasharray: 4 3;
+    pointer-events: none;
+    z-index: 15;
+}
+
+.timebox-gantt-status-badge {
+    cursor: default;
+    user-select: none;
+}
+
+.timebox-gantt-status-badge-bg {
+    fill: var(--color-orange, #f59e0b);
+    opacity: 0.92;
+}
+
+.timebox-gantt-status-badge-text {
+    fill: #ffffff;
+    font-size: 10px;
+    font-weight: 600;
+    font-family: var(--font-monospace, monospace);
+    dominant-baseline: middle;
+}
+
+.timebox-gantt-today-btn.is-active-status {
+    background: rgba(245, 158, 11, 0.18);
+    border-color: var(--color-orange, #f59e0b);
+    color: var(--color-orange, #f59e0b);
+    font-weight: 600;
+}
+
+.timebox-gantt-task-bar-progress {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.22);
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+.timebox-gantt-forecast-bar {
+    position: absolute;
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(239, 68, 68, 0.35),
+        rgba(239, 68, 68, 0.35) 4px,
+        rgba(239, 68, 68, 0.15) 4px,
+        rgba(239, 68, 68, 0.15) 8px
+    );
+    border: 1px dashed var(--color-red, #ef4444);
+    border-radius: 3px;
+    z-index: 12;
+    pointer-events: auto;
+    cursor: help;
+}
+
+.timebox-task-info-readout {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 14px;
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    margin: 8px 0;
+}
+
+.timebox-readout-item {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: var(--font-monospace, monospace);
+}
+
+.timebox-status-presets {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+
 

@@ -7,6 +7,7 @@ import { ProjectCommandManager } from './projectCommandManager';
 import { MarkdownAdapter } from './markdownAdapter';
 import { ProjectSettingsModal } from './projectSettingsModal';
 import { BaselineModal } from './baselineModal';
+import { StatusDateModal } from './statusDateModal';
 import TimeBoxPlugin from './main';
 
 export const TIMEBOX_GANTT_VIEW_TYPE = 'timebox-gantt-view';
@@ -42,6 +43,13 @@ interface FlattenedGanttRow {
     constraintDate?: string;
     baselineStart?: string;
     baselineFinish?: string;
+    plannedStart?: string;
+    plannedFinish?: string;
+    actualStart?: string;
+    actualFinish?: string;
+    actualWork?: number;
+    forecastStart?: string;
+    forecastFinish?: string;
     description?: string;
     workingIntervals: Array<{ start: string; end: string }>;
 }
@@ -62,6 +70,10 @@ export class TaskInformationModal extends Modal {
     private resInput: HTMLInputElement | null = null;
     private milestoneCheck: HTMLInputElement | null = null;
     private completedCheck: HTMLInputElement | null = null;
+    private actualStartInput: HTMLInputElement | null = null;
+    private actualFinishInput: HTMLInputElement | null = null;
+    private actualWorkInput: HTMLInputElement | null = null;
+    private progressInput: HTMLInputElement | null = null;
 
     constructor(
         app: App,
@@ -166,6 +178,67 @@ export class TaskInformationModal extends Modal {
         this.completedCheck.checked = this.task.completed;
         completedLabel.createSpan({ text: ' Task Completed' });
 
+        // Execution & Actuals Section
+        const trackingHeader = form.createDiv({ cls: 'timebox-form-section-title full-width' });
+        trackingHeader.createEl('h4', { text: 'Execution Tracking & Actuals' });
+
+        // Actual Start
+        const actStartRow = form.createDiv({ cls: 'timebox-form-row' });
+        actStartRow.createEl('label', { text: 'Actual Start Date:' });
+        this.actualStartInput = actStartRow.createEl('input', {
+            type: 'date',
+            value: this.task.actualStart || ''
+        });
+
+        // Actual Finish
+        const actFinishRow = form.createDiv({ cls: 'timebox-form-row' });
+        actFinishRow.createEl('label', { text: 'Actual Finish Date:' });
+        this.actualFinishInput = actFinishRow.createEl('input', {
+            type: 'date',
+            value: this.task.actualFinish || ''
+        });
+
+        // Actual Work
+        const actWorkRow = form.createDiv({ cls: 'timebox-form-row' });
+        actWorkRow.createEl('label', { text: 'Actual Work (Hours):' });
+        this.actualWorkInput = actWorkRow.createEl('input', {
+            type: 'number',
+            value: this.task.actualWork !== undefined ? String(this.task.actualWork) : '',
+            placeholder: 'e.g. 16'
+        });
+        this.actualWorkInput.min = '0';
+
+        // Progress %
+        const progressRow = form.createDiv({ cls: 'timebox-form-row' });
+        progressRow.createEl('label', { text: 'Progress (% Complete):' });
+        this.progressInput = progressRow.createEl('input', {
+            type: 'number',
+            value: String(this.task.percentComplete !== undefined ? this.task.percentComplete : (this.task.completed ? 100 : 0))
+        });
+        this.progressInput.min = '0';
+        this.progressInput.max = '100';
+
+        // Read-only Scheduled Intent vs Forecast Summary
+        const scheduleSummary = form.createDiv({ cls: 'timebox-task-info-readout full-width' });
+        const planStart = this.task.plannedStart || this.task.startDate || '—';
+        const planFinish = this.task.plannedFinish || this.task.dueDate || '—';
+        const fcastStart = this.task.forecastStart || '—';
+        const fcastFinish = this.task.forecastFinish || '—';
+        const baseSpan = this.task.baselineStart ? `${this.task.baselineStart} → ${this.task.baselineFinish}` : 'None active';
+
+        scheduleSummary.createEl('div', {
+            cls: 'timebox-readout-item',
+            text: `Planned Intent: ${planStart} → ${planFinish}`
+        });
+        scheduleSummary.createEl('div', {
+            cls: 'timebox-readout-item',
+            text: `Forecast Projected: ${fcastStart} → ${fcastFinish}`
+        });
+        scheduleSummary.createEl('div', {
+            cls: 'timebox-readout-item',
+            text: `Active Baseline: ${baseSpan}`
+        });
+
         // Synchronize Working Calendar between Start, Dur, and Due fields
         this.startInput.addEventListener('change', () => {
             const startVal = this.startInput?.value;
@@ -242,6 +315,11 @@ export class TaskInformationModal extends Modal {
             ? rawPred.split(',').map(s => s.replace(/#/g, '').trim()).filter(s => s.length > 0)
             : [];
 
+        const actualStart = this.actualStartInput?.value || undefined;
+        const actualFinish = this.actualFinishInput?.value || undefined;
+        const actualWork = this.actualWorkInput?.value ? parseFloat(this.actualWorkInput.value) : undefined;
+        const percentComplete = this.progressInput?.value ? parseInt(this.progressInput.value, 10) : undefined;
+
         await this.projectManager.updateTaskDetails(this.projectFile, this.task.lineIndex, {
             title,
             description,
@@ -251,7 +329,11 @@ export class TaskInformationModal extends Modal {
             resource: rawResource,
             predecessors,
             isMilestone,
-            completed
+            completed,
+            actualStart,
+            actualFinish,
+            actualWork,
+            percentComplete
         });
 
         new Notice(`Saved task: ${title}`);
@@ -882,6 +964,24 @@ export class ProjectGanttView extends ItemView {
             todayBtn.addEventListener('click', () => {
                 this.scrollToToday();
             });
+
+            const statusDateStr = projectData.statusDate || projectData.normalizedProject?.statusDate;
+            const statusBtn = centerGroup.createEl('button', {
+                cls: `timebox-gantt-today-btn ${statusDateStr ? 'is-active-status' : ''}`,
+                text: statusDateStr ? `📅 Status: ${statusDateStr}` : '📅 Status Date'
+            });
+            statusBtn.title = statusDateStr
+                ? `Active Project Status Date: ${statusDateStr}. Click to edit or clear.`
+                : 'Configure Project Status Date for execution tracking and forecast calculations';
+            statusBtn.addEventListener('click', () => {
+                new StatusDateModal(
+                    this.app,
+                    projectData.file,
+                    statusDateStr,
+                    this.projectManager,
+                    () => void this.render()
+                ).open();
+            });
         }
 
         // Critical Path Toggle Button
@@ -1021,6 +1121,13 @@ export class ProjectGanttView extends ItemView {
                 constraintDate: parentTask.constraintDate,
                 baselineStart: parentTask.baselineStart,
                 baselineFinish: parentTask.baselineFinish,
+                plannedStart: parentTask.plannedStart,
+                plannedFinish: parentTask.plannedFinish,
+                actualStart: parentTask.actualStart,
+                actualFinish: parentTask.actualFinish,
+                actualWork: parentTask.actualWork,
+                forecastStart: parentTask.forecastStart,
+                forecastFinish: parentTask.forecastFinish,
                 description: parentTask.description,
                 workingIntervals: parentTask.workingIntervals || (parentTask.startDate && parentTask.dueDate ? WorkingCalendar.getWorkingIntervals(parentTask.startDate, parentTask.dueDate) : [])
             });
@@ -1052,6 +1159,13 @@ export class ProjectGanttView extends ItemView {
                         constraintDate: subtask.constraintDate,
                         baselineStart: subtask.baselineStart,
                         baselineFinish: subtask.baselineFinish,
+                        plannedStart: subtask.plannedStart,
+                        plannedFinish: subtask.plannedFinish,
+                        actualStart: subtask.actualStart,
+                        actualFinish: subtask.actualFinish,
+                        actualWork: subtask.actualWork,
+                        forecastStart: subtask.forecastStart,
+                        forecastFinish: subtask.forecastFinish,
                         description: subtask.description,
                         workingIntervals: subtask.workingIntervals || (subtask.startDate && subtask.dueDate ? WorkingCalendar.getWorkingIntervals(subtask.startDate, subtask.dueDate) : [])
                     });
@@ -1776,6 +1890,49 @@ export class ProjectGanttView extends ItemView {
             gridSvg.appendChild(todayLine);
         }
 
+        // Draw Status Date vertical dashed line & Badge
+        const statusDateStr = projectData.statusDate || projectData.normalizedProject?.statusDate;
+        if (statusDateStr) {
+            const statusMoment = getMoment(statusDateStr, 'YYYY-MM-DD');
+            if (statusMoment.isValid()) {
+                const statusDiff = statusMoment.diff(minDate, 'days');
+                if (statusDiff >= 0 && statusDiff < totalDays) {
+                    const statusX = statusDiff * columnWidth + (columnWidth / 2);
+                    const statusLine = this.createSvgElement('line', {
+                        x1: `${statusX}`,
+                        y1: '0',
+                        x2: `${statusX}`,
+                        y2: `${timelineHeight}`,
+                        class: 'timebox-gantt-status-line'
+                    });
+                    gridSvg.appendChild(statusLine);
+
+                    // Badge at top of Status Date line
+                    const badgeGroup = this.createSvgElement('g', {
+                        class: 'timebox-gantt-status-badge'
+                    });
+                    const badgeRect = this.createSvgElement('rect', {
+                        x: `${statusX - 55}`,
+                        y: '2',
+                        width: '110',
+                        height: '18',
+                        rx: '3',
+                        class: 'timebox-gantt-status-badge-bg'
+                    });
+                    const badgeText = this.createSvgElement('text', {
+                        x: `${statusX}`,
+                        y: '14',
+                        'text-anchor': 'middle',
+                        class: 'timebox-gantt-status-badge-text'
+                    });
+                    badgeText.textContent = `STATUS: ${statusDateStr}`;
+                    badgeGroup.appendChild(badgeRect);
+                    badgeGroup.appendChild(badgeText);
+                    gridSvg.appendChild(badgeGroup);
+                }
+            }
+        }
+
         // Collect Task Coordinates for Dependency Arrow Rendering
         interface TaskBarCoords {
             rowIndex: number;
@@ -2076,6 +2233,17 @@ export class ProjectGanttView extends ItemView {
                 height: `${barHeight}px`
             });
 
+            // Progress bar fill for partially complete tasks
+            if (row.percentComplete > 0 && !row.task.completed) {
+                const progressFill = barEl.createDiv({
+                    cls: 'timebox-gantt-task-bar-progress'
+                });
+                progressFill.setCssStyles({
+                    width: `${Math.min(100, Math.max(0, row.percentComplete))}%`,
+                    height: '100%'
+                });
+            }
+
             // Label on the first segment
             if (intvIdx === 0) {
                 barEl.createSpan({
@@ -2160,6 +2328,28 @@ export class ProjectGanttView extends ItemView {
                 height: '4px'
             });
             baseBar.title = `Baseline 0: ${row.baselineStart} → ${row.baselineFinish}`;
+        }
+
+        // Forecast ghost slippage bar if forecast finishes after planned finish
+        if (row.forecastFinish && row.dueDate && row.forecastFinish > row.dueDate) {
+            const planDueM = getMoment(row.dueDate, 'YYYY-MM-DD');
+            const fcastDueM = getMoment(row.forecastFinish, 'YYYY-MM-DD');
+            const slipDays = fcastDueM.diff(planDueM, 'days');
+            if (slipDays > 0) {
+                const planDueDay = planDueM.diff(minDate, 'days') + 1;
+                const slipLeftPx = planDueDay * colWidth;
+                const slipWidthPx = slipDays * colWidth;
+                const fcastBar = container.createDiv({
+                    cls: 'timebox-gantt-forecast-bar'
+                });
+                fcastBar.setCssStyles({
+                    left: `${slipLeftPx}px`,
+                    top: `${topPx + (barHeight / 4)}px`,
+                    width: `${Math.max(6, slipWidthPx)}px`,
+                    height: `${barHeight / 2}px`
+                });
+                fcastBar.title = `Forecast Slippage: Slipped by ${slipDays}d (Forecast Finish: ${row.forecastFinish})`;
+            }
         }
     }
 

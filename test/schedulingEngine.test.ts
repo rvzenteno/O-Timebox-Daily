@@ -898,7 +898,124 @@ test('17. Multi-Baseline Management: Baseline 0..10 snapshots, immutability, and
     const scheduled4 = SchedulingEngine.schedule(scheduled3);
     assert.strictEqual(scheduled4.tasks[0].variance?.finishVariance, 3);
 });
+test('18. Phase 3: Status Date, Actuals, and Forecast Engine (6 scenarios & separation)', () => {
+    // Markdown with Status Date, Task Actuals, and Dependencies
+    const rawMarkdown = `---
+title: "Phase 3 Status Date and Actuals Project"
+projectStartDate: "2026-09-01"
+statusDate: "2026-09-15"
+---
 
+# Execution Project
 
+- [x] Task 1 Completed Early [actualStart:: 2026-09-01] [actualFinish:: 2026-09-04] [actualWork:: 32h] 🛫 2026-09-01 📅 2026-09-07 ⏳ 5d
+- [/] Task 2 In Progress @dev-1 [actualStart:: 2026-09-08] [actualWork:: 24h] 🛫 2026-09-08 📅 2026-09-18 ⏳ 9d 50%
+- [ ] Task 3 Future Unstarted 🛫 2026-09-21 📅 2026-09-25 ⏳ 5d
+- [ ] Task 4 Planned Before Status Date Incomplete 🛫 2026-09-07 📅 2026-09-11 ⏳ 5d
+- [ ] Task 5 Dependent on Incomplete Task dependsOn:: 4 ⏳ 3d
+- [ ] Task 6 Resource Allocated with Overrun @dev-1 [actualStart:: 2026-09-14] [actualWork:: 16h] 🛫 2026-09-14 📅 2026-09-17 ⏳ 4d 50%
+`;
 
+    // 1. Markdown Parsing & Persistence of Status Date & Actuals
+    const project = MarkdownAdapter.parseProject('StatusTest.md', 'StatusTest', rawMarkdown);
+    assert.strictEqual(project.statusDate, '2026-09-15', 'Status date parsed from frontmatter');
+    assert.strictEqual(project.tasks.length, 6);
 
+    // Verify Task 1 actuals parsed
+    const t1 = project.tasks[0];
+    assert.strictEqual(t1.actualStart, '2026-09-01');
+    assert.strictEqual(t1.actualFinish, '2026-09-04');
+    assert.strictEqual(t1.actualWorkHours, 32);
+
+    // Verify Timebox Daily Note cleanliness: stripProjectMetadata must remove actuals tokens
+    const cleanedTaskTitle = MarkdownAdapter.stripProjectMetadata(t1.rawLine || '');
+    assert.ok(!cleanedTaskTitle.includes('actualStart::'), 'actualStart stripped for Timebox');
+    assert.ok(!cleanedTaskTitle.includes('actualFinish::'), 'actualFinish stripped for Timebox');
+    assert.ok(!cleanedTaskTitle.includes('actualWork::'), 'actualWork stripped for Timebox');
+
+    // Run scheduling engine (baseline snapshot -> schedule -> forecast)
+    const scheduled = SchedulingEngine.schedule(project);
+    SchedulingEngine.saveBaseline(scheduled, '0', 'Contract Baseline');
+
+    // SCENARIO 1: Task completed before status date
+    // Task finished early (Sept 4 vs planned Sept 5).
+    // Planned schedule must remain Sept 1 -> Sept 5.
+    // Forecast must be Sept 1 -> Sept 4. Remaining work & duration must be 0.
+    const s1 = scheduled.tasks[0];
+    assert.strictEqual(s1.plannedStart, '2026-09-01', 'Scenario 1: Planned start preserved');
+    assert.strictEqual(s1.plannedFinish, '2026-09-07', 'Scenario 1: Planned finish preserved');
+    assert.strictEqual(s1.actualStart, '2026-09-01', 'Scenario 1: Actual start');
+    assert.strictEqual(s1.actualFinish, '2026-09-04', 'Scenario 1: Actual finish');
+    assert.strictEqual(s1.forecastStart, '2026-09-01', 'Scenario 1: Forecast start = actual');
+    assert.strictEqual(s1.forecastFinish, '2026-09-04', 'Scenario 1: Forecast finish = actual finish');
+    assert.strictEqual(s1.remainingDurationDays, 0, 'Scenario 1: Remaining duration is 0');
+    assert.strictEqual(s1.remainingWorkHours, 0, 'Scenario 1: Remaining work is 0');
+
+    // SCENARIO 2: Task partially complete at status date
+    // Task 2: 9 days total duration, 50% complete.
+    // Actual start = 2026-09-08. Status date = 2026-09-15.
+    // Remaining days = round(9 * 0.5) = 5 days.
+    // Remaining work must be anchored from Status Date forward (2026-09-15).
+    // 5 working days from 2026-09-15 (Tue, Wed, Thu, Fri, Mon 2026-09-21).
+    const s2 = scheduled.tasks[1];
+    assert.strictEqual(s2.plannedStart, '2026-09-08', 'Scenario 2: Planned start preserved');
+    assert.strictEqual(s2.plannedFinish, '2026-09-18', 'Scenario 2: Planned finish preserved');
+    assert.strictEqual(s2.actualStart, '2026-09-08', 'Scenario 2: Actual start preserved');
+    assert.strictEqual(s2.forecastStart, '2026-09-08', 'Scenario 2: Forecast start is actual start');
+    assert.strictEqual(s2.remainingDurationDays, 5, 'Scenario 2: Remaining duration calculated');
+    assert.strictEqual(s2.forecastFinish, '2026-09-21', 'Scenario 2: Forecast finish projected past planned finish');
+
+    // SCENARIO 3: Task not started at status date
+    // Task 3: Planned in future (Sept 21 -> Sept 25).
+    // Forecast should match planned dates.
+    const s3 = scheduled.tasks[2];
+    assert.strictEqual(s3.plannedStart, '2026-09-21', 'Scenario 3: Planned start');
+    assert.strictEqual(s3.plannedFinish, '2026-09-25', 'Scenario 3: Planned finish');
+    assert.strictEqual(s3.forecastStart, '2026-09-21', 'Scenario 3: Forecast start matches planned');
+    assert.strictEqual(s3.forecastFinish, '2026-09-25', 'Scenario 3: Forecast finish matches planned');
+    assert.strictEqual(s3.remainingDurationDays, 5, 'Scenario 3: 100% remaining');
+
+    // SCENARIO 4: Task planned before status date but incomplete
+    // Task 4 was planned for 2026-09-07 -> 2026-09-11 (5 days).
+    // But today is 2026-09-15 (Status Date) and it has not started (0% complete).
+    // Planned start MUST REMAIN 2026-09-07! It must NOT be silently overwritten!
+    // Forecast start MUST slip to Status Date: 2026-09-15.
+    // 5 working days from 2026-09-15 -> finishes 2026-09-21.
+    const s4 = scheduled.tasks[3];
+    assert.strictEqual(s4.plannedStart, '2026-09-07', 'Scenario 4: Planned start must NOT be overwritten');
+    assert.strictEqual(s4.plannedFinish, '2026-09-11', 'Scenario 4: Planned finish must NOT be overwritten');
+    assert.strictEqual(s4.forecastStart, '2026-09-15', 'Scenario 4: Forecast slips to status date');
+    assert.strictEqual(s4.forecastFinish, '2026-09-21', 'Scenario 4: Forecast finish slips');
+
+    // SCENARIO 5: Task with dependencies
+    // Task 5 depends on Task 4 (FS). Task 5 duration = 3d.
+    // Planned: Task 4 ended Sept 11 -> Task 5 was planned Sept 14 -> Sept 16.
+    // Successor Planned dates must be preserved!
+    // Successor Forecast MUST ripple: predecessor forecast finish is 2026-09-21.
+    // Task 5 forecast start = 2026-09-22 -> finishes 2026-09-24 (3 working days: 22, 23, 24).
+    const s5 = scheduled.tasks[4];
+    assert.strictEqual(s5.plannedStart, '2026-09-14', 'Scenario 5: Successor planned start preserved');
+    assert.strictEqual(s5.plannedFinish, '2026-09-16', 'Scenario 5: Successor planned finish preserved');
+    assert.strictEqual(s5.forecastStart, '2026-09-22', 'Scenario 5: Forecast ripples from predecessor slippage');
+    assert.strictEqual(s5.forecastFinish, '2026-09-24', 'Scenario 5: Forecast finish ripples');
+
+    // SCENARIO 6: Task with resource assignments
+    // Task 6 has actual work = 16h, 50% complete.
+    // Remaining work = 16h.
+    const s6 = scheduled.tasks[5];
+    assert.strictEqual(s6.actualWorkHours, 16, 'Scenario 6: Actual work recorded');
+    assert.strictEqual(s6.remainingWorkHours, 16, 'Scenario 6: Remaining work calculated');
+    assert.strictEqual(s6.forecastStart, '2026-09-14');
+
+    // STRICT SEPARATION & IMMUTABILITY CHECK
+    // Verify that Baseline 0 still retains original snapshots and has not been mutated
+    assert.strictEqual(scheduled.baselines['0'].tasks[s4.id].start, '2026-09-07');
+    assert.strictEqual(scheduled.baselines['0'].tasks[s4.id].finish, '2026-09-11');
+
+    // Verify serialization round-trip retains actuals
+    const serialized = MarkdownAdapter.serializeProject(scheduled, rawMarkdown);
+    assert.ok(serialized.includes('[actualStart:: 2026-09-01]'), 'Serialized actualStart');
+    assert.ok(serialized.includes('[actualFinish:: 2026-09-04]'), 'Serialized actualFinish');
+    assert.ok(serialized.includes('[actualWork:: 32h]'), 'Serialized actualWork');
+    assert.ok(serialized.includes('statusDate: "2026-09-15"') || serialized.includes('statusDate: 2026-09-15'));
+});
