@@ -298,8 +298,15 @@ export class ProjectManager {
      * Get all project files located in the designated projects folder.
      */
     getProjectFiles(projectsFolder: string): TFile[] {
-        const folder = this.app.vault.getFolderByPath(projectsFolder);
-        if (!folder) return [];
+        let folder = this.app.vault.getAbstractFileByPath(projectsFolder);
+        if (!folder && (this.app.vault as any).getFolderByPath) {
+            try {
+                folder = (this.app.vault as any).getFolderByPath(projectsFolder);
+            } catch {
+                // ignore
+            }
+        }
+        if (!(folder instanceof TFolder)) return [];
 
         const files: TFile[] = [];
         const collectMarkdownFiles = (targetFolder: TFolder) => {
@@ -1526,9 +1533,22 @@ created: ${getMoment().format('YYYY-MM-DD')}
                     if (cleanTarget === cleanSource) {
                         const currentStatus = line.includes('- [x]') || line.includes('- [X]');
                         if (currentStatus !== isCompleted) {
-                            lines[i] = isCompleted
-                                ? line.replace(/- \[[ ]\]/, '- [x]')
-                                : line.replace(/- \[[xX]\]/, '- [ ]');
+                            if (isCompleted) {
+                                let updated = line.replace(/- \[[ ]\]/, '- [x]');
+                                if (isDailyNote) {
+                                    const dateMatch = sourceFile.basename.match(/^\d{4}-\d{2}-\d{2}$/);
+                                    const finishDate = dateMatch ? dateMatch[0] : getMoment().format('YYYY-MM-DD');
+                                    if (!updated.includes('[actualFinish::')) {
+                                        updated += ` [actualFinish:: ${finishDate}]`;
+                                    }
+                                    if (updated.includes('[%::')) {
+                                        updated = updated.replace(/\[%::\s*\d+\]/g, '[%:: 100]');
+                                    }
+                                }
+                                lines[i] = updated;
+                            } else {
+                                lines[i] = line.replace(/- \[[xX]\]/, '- [ ]');
+                            }
                             modified = true;
                         }
                     }

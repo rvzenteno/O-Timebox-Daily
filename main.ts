@@ -5,6 +5,12 @@ import { ProjectGanttView, TIMEBOX_GANTT_VIEW_TYPE } from './projectGanttView';
 import { ProjectSuggestModal } from './projectSuggestModal';
 import { WhatsNewModal } from './whatsNewModal';
 
+import { 
+    SavedViewDefinition, 
+    DEFAULT_SAVED_VIEWS, 
+    TaskGroupingMode 
+} from './taskDiscoveryEngine';
+
 const getMoment = (inp?: unknown, fmt?: unknown, strict?: boolean): moment.Moment => 
     (moment as unknown as (i?: unknown, f?: unknown, s?: boolean) => moment.Moment)(inp, fmt, strict);
 
@@ -25,6 +31,10 @@ export interface TimeBoxSettings {
     rolloverMergeMode: 'section' | 'merge';
     addNavigationLinks: boolean;
     taskSheetVisibleColumns?: string[];
+    taskSheetCurrentUserId?: string;
+    taskSheetSavedViews?: SavedViewDefinition[];
+    taskSheetActiveSavedViewId?: string;
+    taskSheetGroupingMode?: TaskGroupingMode;
 }
 
 const DEFAULT_SETTINGS: TimeBoxSettings = {
@@ -56,16 +66,293 @@ const DEFAULT_SETTINGS: TimeBoxSettings = {
         'percentComplete',
         'critical',
         'actions'
-    ]
+    ],
+    taskSheetCurrentUserId: '',
+    taskSheetSavedViews: DEFAULT_SAVED_VIEWS,
+    taskSheetActiveSavedViewId: 'default',
+    taskSheetGroupingMode: 'wbs'
 };
 
 export default class TimeBoxPlugin extends Plugin {
     settings: TimeBoxSettings;
     projectManager: ProjectManager;
+    private expandedDailyGroups: Set<string> = new Set();
+    private knownProjectsCache: string[] = [];
+    private reconcileDebounceTimer: number | null = null;
+
+    isDailyNotePath(path: string): boolean {
+        if (!path) return false;
+        const normSource = path.replace(/\\/g, '/').replace(/^\/+/, '');
+        const normTimebox = (this.settings.timeBoxFolder || 'TimeBox').replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
+        const normProjects = (this.settings.projectsFolder || 'TimeBox/Projects').replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
+
+        const sourceLower = normSource.toLowerCase();
+        const timeboxLower = normTimebox.toLowerCase();
+        const projectsLower = normProjects.toLowerCase();
+
+        // Must NOT be inside the projects folder
+        if (sourceLower.startsWith(`${projectsLower}/`) || sourceLower.includes(`/${projectsLower}/`)) {
+            return false;
+        }
+
+        // Daily note is inside the timebox folder or matches YYYY-MM-DD.md (or YYYY-MM-DD)
+        return (
+            sourceLower.startsWith(`${timeboxLower}/`) ||
+            sourceLower.includes(`/${timeboxLower}/`) ||
+            /^\d{4}-\d{2}-\d{2}(\.md)?$/i.test(normSource.split('/').pop() || '')
+        );
+    }
+
+    isDateOrNavTarget(target: string): boolean {
+        if (!target) return true;
+        const lower = target.toLowerCase().trim();
+        if (/\b\d{4}[-/]\d{2}[-/]\d{2}\b/.test(target)) return true;
+        if (
+            lower.includes('yesterday') ||
+            lower.includes('tomorrow') ||
+            lower.includes('◀') ||
+            lower.includes('▶') ||
+            lower === 'timebox' ||
+            lower.endsWith('/timebox')
+        ) {
+            return true;
+        }
+        return false;
+    }
+
+    getKnownProjectNames(): string[] {
+        if (this.knownProjectsCache.length > 0) {
+            return this.knownProjectsCache;
+        }
+        this.refreshKnownProjects();
+        return this.knownProjectsCache;
+    }
+
+    refreshKnownProjects(): void {
+        const normProjects = (this.settings.projectsFolder || 'TimeBox/Projects').replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
+        const projectsLower = normProjects.toLowerCase();
+        let projects: string[] = [];
+
+        try {
+            const projectFiles = this.projectManager.getProjectFiles(this.settings.projectsFolder);
+            projects = projectFiles.map(f => f.basename);
+        } catch {}
+
+        if (projects.length === 0) {
+            try {
+                const mdFiles = this.app.vault.getMarkdownFiles();
+                projects = mdFiles
+                    .filter(f => {
+                        const p = f.path.replace(/\\/g, '/').toLowerCase().replace(/^\/+/, '');
+                        return p.startsWith(projectsLower + '/') || p.includes('/' + projectsLower + '/');
+                    })
+                    .map(f => f.basename);
+            } catch {}
+        }
+
+        if (projects.length > 0) {
+            this.knownProjectsCache = projects;
+        }
+    }
+
+    reconcileActiveDailyPreview(leaf?: WorkspaceLeaf | null): void {
+        const targetLeaf = leaf || this.app.workspace.activeLeaf;
+        if (!targetLeaf) return;
+        const view = targetLeaf.view;
+        if (!(view instanceof MarkdownView)) return;
+        const file = view.file;
+        if (!file || !this.isDailyNotePath(file.path)) return;
+        if (view.getMode() !== 'preview') return;
+
+        const container = (view as any).previewMode?.containerEl;
+        if (!container) return;
+
+        this.processDailyNoteGrouping(container, file.path);
+    }
+
+    scheduleDailyPreviewReconciliation(leaf?: WorkspaceLeaf | null): void {
+        if (this.reconcileDebounceTimer !== null) {
+            window.clearTimeout(this.reconcileDebounceTimer);
+        }
+        this.reconcileDebounceTimer = window.setTimeout(() => {
+            this.reconcileDebounceTimer = null;
+            this.reconcileActiveDailyPreview(leaf);
+        }, 50);
+    }
+
+    processDailyNoteGrouping(rootEl: HTMLElement, sourcePath?: string): void {
+        const resolvedPath = sourcePath || this.app.workspace.getActiveFile()?.path || '';
+        if (resolvedPath && !this.isDailyNotePath(resolvedPath)) {
+            return;
+        }
+
+        // 1. Clean PM metadata tokens from text nodes in task items (BEFORE grouping)
+        const taskItems = rootEl.querySelectorAll('li.task-list-item');
+        taskItems.forEach((li) => {
+            for (let i = 0; i < li.childNodes.length; i++) {
+                const node = li.childNodes[i];
+                if (node.nodeType === Node.TEXT_NODE && node.nodeValue) {
+                    const cleaned = ProjectManager.stripProjectMetadata(node.nodeValue);
+                    if (cleaned !== node.nodeValue) {
+                        node.nodeValue = cleaned ? ` ${cleaned} ` : '';
+                    }
+                }
+            }
+        });
+
+        // 2. Group daily tasks by project into collapsible sections (collapsed by default)
+        const targetUls: HTMLUListElement[] = [];
+        if (rootEl.tagName === 'UL' && (rootEl.classList.contains('contains-task-list') || rootEl.querySelector('li.task-list-item') || rootEl.querySelector('input[type="checkbox"]'))) {
+            targetUls.push(rootEl as HTMLUListElement);
+        }
+        rootEl.querySelectorAll<HTMLUListElement>('ul').forEach((u) => {
+            if (u.classList.contains('contains-task-list') || u.querySelector('li.task-list-item') || u.querySelector('input[type="checkbox"]')) {
+                if (!targetUls.includes(u)) {
+                    targetUls.push(u);
+                }
+            }
+        });
+
+        if (targetUls.length === 0) return;
+
+        const knownProjects = this.getKnownProjectNames();
+
+        targetUls.forEach((ul) => {
+            // Idempotency: avoid re-grouping lists already grouped or inside a project task list
+            if (
+                ul.closest('.timebox-daily-project-group') ||
+                ul.classList.contains('timebox-daily-project-task-list') ||
+                ul.classList.contains('timebox-daily-grouped-ul') ||
+                ul.dataset.timeboxGrouped === 'true'
+            ) {
+                return;
+            }
+
+            const lis = Array.from(ul.children).filter(
+                (child): child is HTMLLIElement => child.tagName === 'LI'
+            );
+            if (lis.length === 0) return;
+
+            const projectMap = new Map<string, HTMLLIElement[]>();
+            const generalLis: HTMLLIElement[] = [];
+
+            for (const li of lis) {
+                let matchedProject: string | null = null;
+
+                // 1. Check all internal links in the task item against known projects
+                const internalLinks = Array.from(li.querySelectorAll<HTMLAnchorElement>('a.internal-link, a[data-href], a[href]'));
+                for (const link of internalLinks) {
+                    const target = link.getAttribute('data-href') || link.getAttribute('href') || link.textContent || '';
+                    const cleanTarget = target.split('|')[0].split('#')[0].replace(/^.*[\\/]/, '').replace(/\.md$/, '').trim();
+                    if (cleanTarget) {
+                        const exactMatch = knownProjects.find(p => p.toLowerCase() === cleanTarget.toLowerCase());
+                        if (exactMatch) {
+                            matchedProject = exactMatch;
+                            break;
+                        }
+                    }
+                }
+
+                // 2. Wikilink regex match in text content against known projects
+                if (!matchedProject) {
+                    const text = li.textContent || '';
+                    const wikiMatches = Array.from(text.matchAll(/\[\[([^\]]+)\]\]/g));
+                    for (const match of wikiMatches) {
+                        if (match[1]) {
+                            const cleanTarget = match[1].split('|')[0].split('#')[0].replace(/^.*[\\/]/, '').replace(/\.md$/, '').trim();
+                            const exactMatch = knownProjects.find(p => p.toLowerCase() === cleanTarget.toLowerCase());
+                            if (exactMatch) {
+                                matchedProject = exactMatch;
+                                break;
+                            }
+                        }
+                    }
+
+                    // 2b. Fallback: if no known project matched, but wikilink exists and is not date/nav
+                    if (!matchedProject && wikiMatches.length > 0) {
+                        for (const match of wikiMatches) {
+                            const cleanTarget = match[1].split('|')[0].split('#')[0].replace(/^.*[\\/]/, '').replace(/\.md$/, '').trim();
+                            if (cleanTarget && cleanTarget.length > 1 && !this.isDateOrNavTarget(cleanTarget)) {
+                                matchedProject = cleanTarget;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // 3. Fallback: if internal link exists and has a plausible non-date target
+                if (!matchedProject && internalLinks.length > 0) {
+                    for (const link of internalLinks) {
+                        const target = link.getAttribute('data-href') || link.getAttribute('href') || link.textContent || '';
+                        const cleanTarget = target.split('|')[0].split('#')[0].replace(/^.*[\\/]/, '').replace(/\.md$/, '').trim();
+                        if (cleanTarget && cleanTarget.length > 1 && !this.isDateOrNavTarget(cleanTarget)) {
+                            matchedProject = cleanTarget;
+                            break;
+                        }
+                    }
+                }
+
+                // 4. Known project names phrase match in text content
+                if (!matchedProject) {
+                    const liTextLower = (li.textContent || '').toLowerCase();
+                    for (const projName of knownProjects) {
+                        if (projName && projName.length > 2 && liTextLower.includes(projName.toLowerCase())) {
+                            matchedProject = projName;
+                            break;
+                        }
+                    }
+                }
+
+                if (matchedProject) {
+                    if (!projectMap.has(matchedProject)) {
+                        projectMap.set(matchedProject, []);
+                    }
+                    projectMap.get(matchedProject)!.push(li);
+                } else {
+                    generalLis.push(li);
+                }
+            }
+
+            // If no project associations were found in this entire list, leave standard list intact
+            if (projectMap.size === 0) {
+                return;
+            }
+
+            ul.dataset.timeboxGrouped = 'true';
+            ul.classList.add('timebox-daily-grouped-ul');
+            ul.empty();
+
+            // Sort project names alphabetically
+            const sortedProjects = Array.from(projectMap.keys()).sort((a, b) => a.localeCompare(b));
+
+            // Add project groups (collapsed by default)
+            for (const projName of sortedProjects) {
+                const groupLis = projectMap.get(projName)!;
+                const groupEl = this.createProjectGroupElement(projName, groupLis, false, resolvedPath);
+                ul.appendChild(groupEl);
+            }
+
+            // Add General / Unassigned group if there are unassigned tasks
+            if (generalLis.length > 0) {
+                const generalEl = this.createProjectGroupElement('General / Unassigned', generalLis, true, resolvedPath);
+                ul.appendChild(generalEl);
+            }
+        });
+    }
 
     async onload() {
         await this.loadSettings();
         this.projectManager = new ProjectManager(this.app);
+        this.refreshKnownProjects();
+
+        // Keep known projects cache synchronized with vault
+        this.registerEvent(this.app.vault.on('create', () => this.refreshKnownProjects()));
+        this.registerEvent(this.app.vault.on('delete', () => this.refreshKnownProjects()));
+        this.registerEvent(this.app.vault.on('rename', () => this.refreshKnownProjects()));
+        this.app.workspace.onLayoutReady(() => {
+            this.refreshKnownProjects();
+            this.scheduleDailyPreviewReconciliation(this.app.workspace.activeLeaf);
+        });
 
         // Register custom view for project dashboard
         this.registerView(
@@ -79,24 +366,22 @@ export default class TimeBoxPlugin extends Plugin {
             (leaf) => new ProjectGanttView(leaf, this)
         );
 
-        // Register presentation post-processor to keep normal Timebox daily note task display clean
+        // Register presentation post-processor to keep normal Timebox daily note task display clean & grouped by project
         this.registerMarkdownPostProcessor((element, context) => {
-            const isDaily = context.sourcePath.startsWith(this.settings.timeBoxFolder);
-            if (!isDaily) return;
+            this.processDailyNoteGrouping(element, context?.sourcePath);
+        }, 1000);
 
-            const taskItems = element.querySelectorAll('li.task-list-item');
-            taskItems.forEach((li) => {
-                for (let i = 0; i < li.childNodes.length; i++) {
-                    const node = li.childNodes[i];
-                    if (node.nodeType === Node.TEXT_NODE && node.nodeValue) {
-                        const cleaned = ProjectManager.stripProjectMetadata(node.nodeValue);
-                        if (cleaned !== node.nodeValue) {
-                            node.nodeValue = cleaned ? ` ${cleaned} ` : '';
-                        }
-                    }
-                }
-            });
-        });
+        // Automatic reconciliation when switching leaves or preview layout changes
+        this.registerEvent(
+            this.app.workspace.on('active-leaf-change', (leaf) => {
+                this.scheduleDailyPreviewReconciliation(leaf);
+            })
+        );
+        this.registerEvent(
+            this.app.workspace.on('layout-change', () => {
+                this.scheduleDailyPreviewReconciliation(this.app.workspace.activeLeaf);
+            })
+        );
 
         // Add ribbon icon for today's timebox
         this.addRibbonIcon('calendar-clock', 'Open today\'s timebox', async () => {
@@ -692,17 +977,51 @@ export default class TimeBoxPlugin extends Plugin {
     buildGroupedCarriedForwardCallout(incompleteTasks: string[], brainDumps: string[]): string {
         if (incompleteTasks.length === 0 && brainDumps.length === 0) return '';
 
+        const projectFiles = this.projectManager.getProjectFiles(this.settings.projectsFolder);
+        const knownProjects = projectFiles.map(f => f.basename);
         const projectGroups: Map<string, string[]> = new Map();
         const generalTasks: string[] = [];
 
         for (const rawTask of incompleteTasks) {
             const task = rawTask.replace(/^>\s*/, '');
-            const linkMatch = task.match(/\[\[([^\]]+)\]\]/);
-            if (linkMatch && linkMatch[1]) {
-                const fullLink = linkMatch[1];
-                const projectName = fullLink.split('|')[0].replace(/^.*[\\/]/, '').replace(/\.md$/, '').trim();
-                const group = projectGroups.get(projectName);
-                if (group) group.push(task);
+            let matchedProject: string | null = null;
+
+            // 1. Wikilink match
+            const wikiMatches = Array.from(task.matchAll(/\[\[([^\]]+)\]\]/g));
+            for (const match of wikiMatches) {
+                if (match[1]) {
+                    const cleanTarget = match[1].split('|')[0].replace(/^.*[\\/]/, '').replace(/\.md$/, '').trim();
+                    const exactMatch = knownProjects.find(p => p.toLowerCase() === cleanTarget.toLowerCase());
+                    if (exactMatch) {
+                        matchedProject = exactMatch;
+                        break;
+                    }
+                }
+            }
+
+            if (!matchedProject && wikiMatches.length > 0) {
+                const lastMatch = wikiMatches[wikiMatches.length - 1];
+                if (lastMatch && lastMatch[1]) {
+                    matchedProject = lastMatch[1].split('|')[0].replace(/^.*[\\/]/, '').replace(/\.md$/, '').trim();
+                }
+            }
+
+            // 2. Known project names fallback
+            if (!matchedProject) {
+                const taskLower = task.toLowerCase();
+                for (const projName of knownProjects) {
+                    if (projName && taskLower.includes(projName.toLowerCase())) {
+                        matchedProject = projName;
+                        break;
+                    }
+                }
+            }
+
+            if (matchedProject) {
+                if (!projectGroups.has(matchedProject)) {
+                    projectGroups.set(matchedProject, []);
+                }
+                projectGroups.get(matchedProject)!.push(task);
             } else {
                 generalTasks.push(task);
             }
@@ -710,9 +1029,10 @@ export default class TimeBoxPlugin extends Plugin {
 
         let result = '## 📤 Carried forward from yesterday\n\n';
 
-        if (projectGroups.size > 0) {
+        const activeGroups = Array.from(projectGroups.entries()).filter(([_, tasks]) => tasks.length > 0);
+        if (activeGroups.length > 0) {
             result += '> [!todo]- 🌐 Carried Project Tasks (Click to expand)\n';
-            for (const [projName, tasks] of projectGroups.entries()) {
+            for (const [projName, tasks] of activeGroups) {
                 result += `> > [!todo]- 📁 ${projName}\n`;
                 for (const task of tasks) {
                     const cleanedTask = task.startsWith('-') ? task : `- ${task}`;
@@ -742,6 +1062,58 @@ export default class TimeBoxPlugin extends Plugin {
         }
 
         return result;
+    }
+
+    createProjectGroupElement(title: string, lis: HTMLLIElement[], isGeneral: boolean, sourcePath?: string): HTMLElement {
+        const groupKey = `${sourcePath || ''}::${title}`;
+        const isCurrentlyExpanded = this.expandedDailyGroups.has(groupKey);
+
+        const groupEl = document.createElement('li');
+        groupEl.className = isCurrentlyExpanded
+            ? 'timebox-daily-project-group'
+            : 'timebox-daily-project-group is-collapsed';
+
+        const headerEl = document.createElement('div');
+        headerEl.className = 'timebox-daily-project-header';
+
+        const titleEl = document.createElement('span');
+        titleEl.className = 'timebox-daily-project-title';
+        titleEl.textContent = (isGeneral ? '📋 ' : '📁 ') + title;
+
+        const chevronEl = document.createElement('span');
+        chevronEl.className = 'timebox-daily-project-chevron';
+        chevronEl.textContent = isCurrentlyExpanded ? '▼' : '▶';
+
+        const countEl = document.createElement('span');
+        countEl.className = 'timebox-daily-project-count';
+        countEl.textContent = `${lis.length} task${lis.length === 1 ? '' : 's'}`;
+
+        headerEl.appendChild(titleEl);
+        headerEl.appendChild(chevronEl);
+        headerEl.appendChild(countEl);
+
+        const subTaskList = document.createElement('ul');
+        subTaskList.className = 'contains-task-list timebox-daily-project-task-list';
+
+        for (const li of lis) {
+            subTaskList.appendChild(li);
+        }
+
+        headerEl.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const isCollapsed = groupEl.classList.toggle('is-collapsed');
+            chevronEl.textContent = isCollapsed ? '▶' : '▼';
+            if (isCollapsed) {
+                this.expandedDailyGroups.delete(groupKey);
+            } else {
+                this.expandedDailyGroups.add(groupKey);
+            }
+        });
+
+        groupEl.appendChild(headerEl);
+        groupEl.appendChild(subTaskList);
+        return groupEl;
     }
 
     async cleanAndGroupNoteContent(editor: Editor): Promise<void> {
@@ -1272,6 +1644,21 @@ class TimeBoxSettingTab extends PluginSettingTab {
                 text.inputEl.rows = 15;
                 text.inputEl.cols = 50;
             });
+
+        new Setting(containerEl)
+            .setName('Project Management & Discovery')
+            .setHeading();
+
+        new Setting(containerEl)
+            .setName('My user / resource identifier')
+            .setDesc('Resource ID used to filter for "My Tasks" in the Task Sheet discovery toolbar (e.g. "bob" or "alice"). Matches @resource and assignments.')
+            .addText(text => text
+                .setPlaceholder('e.g. bob')
+                .setValue(this.plugin.settings.taskSheetCurrentUserId || '')
+                .onChange((value) => {
+                    this.plugin.settings.taskSheetCurrentUserId = value.trim();
+                    this.plugin.saveSettings().catch(console.error);
+                }));
 
         new Setting(containerEl)
             .setName('Support & Release Notes')

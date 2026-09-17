@@ -116,8 +116,9 @@ export interface NormalizedTask {
 
     // 2. Status & Progress
     completed: boolean;
-    percentComplete: number;   // 0 - 100%
+    percentComplete: number;   // 0 - 100% (Actual % Complete: min(100, (Actual Work / Planned Work) * 100) or explicit)
     percentWorkComplete: number;
+    scheduleProgress?: number; // Internal planned schedule progress (0-100% based on calendar elapsed days vs planned duration)
 
     // 3. User-Entered Dates & Intent (Preserved from Markdown)
     userStart?: string;        // Explicit user start date (YYYY-MM-DD)

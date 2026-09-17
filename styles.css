@@ -669,7 +669,311 @@ a.timebox-github-btn {
 }
 
 /* ==========================================================================
-   TimeBox Gantt Timeline View (Microsoft Project Style)
+   Timebox Design Tokens & Theme Foundation (v1.6 Modernization)
+   ========================================================================== */
+
+:root {
+    /* Spacing Scale */
+    --tb-space-2xs: 2px;
+    --tb-space-xs: 4px;
+    --tb-space-sm: 6px;
+    --tb-space-md: 8px;
+    --tb-space-lg: 12px;
+    --tb-space-xl: 16px;
+    --tb-space-2xl: 24px;
+
+    /* Radii Geometry (DESIGN.md) */
+    --tb-radius-xs: 2px;     /* Micro: diamonds, progress fills, status dots */
+    --tb-radius-sm: 4px;     /* Standard: bars, inputs, buttons, chips */
+    --tb-radius-md: 6px;     /* Surface: sub-panels, segmented groups */
+    --tb-radius-lg: 8px;     /* Structural: modals, cards */
+    --tb-radius-pill: 9999px;/* Pill: status chips, assignee avatars */
+
+    /* Typography Engine */
+    --tb-font-sans: var(--font-interface, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+    --tb-font-mono: var(--font-monospace, 'JetBrains Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace);
+
+    /* Row Heights & Dimensions */
+    --tb-row-height-header: 32px;
+    --tb-row-height-dense: 36px;
+    --tb-row-height-subtask: 28px;
+    --tb-control-height-sm: 26px;
+    --tb-control-height-md: 30px;
+}
+
+/* Light Theme Implementation */
+.theme-light, :root {
+    /* Canvas & Surfaces */
+    --tb-canvas-base: #f8fafc;
+    --tb-canvas-sunken: #f1f5f9;
+    --tb-surface-pure: #ffffff;
+    --tb-surface-hover: #f1f5f9;
+    --tb-surface-active: #f5f3ff;
+    --tb-surface-read-only: #f8fafc;
+
+    /* Hairline Dividers & Borders */
+    --tb-border-soft: #e2e8f0;
+    --tb-border-strong: #cbd5e1;
+    --tb-border-subtle: rgba(226, 232, 240, 0.8);
+
+    /* Text Spectrum */
+    --tb-text-high: #0f172a;
+    --tb-text-medium: #475569;
+    --tb-text-muted: #94a3b8;
+    --tb-text-faint: #cbd5e1;
+
+    /* Primary Accent (Obsidian Violet) */
+    --tb-primary: #7c3aed;
+    --tb-primary-hover: #6d28d9;
+    --tb-primary-active: #5b21b6;
+    --tb-primary-subtle: #f5f3ff;
+    --tb-primary-border: #ddd6fe;
+    --tb-on-primary: #ffffff;
+
+    /* Semantic Roles */
+    /* Critical Path / Warning (Amber) */
+    --tb-critical: #d97706;
+    --tb-critical-bg: #fef3c7;
+    --tb-critical-text: #92400e;
+    --tb-critical-border: #fde68a;
+
+    /* Progress / Complete (Emerald) */
+    --tb-success: #059669;
+    --tb-success-bg: #d1fae5;
+    --tb-success-text: #065f46;
+    --tb-success-border: #a7f3d0;
+
+    /* Milestone / Active Task (Sky) */
+    --tb-info: #0284c7;
+    --tb-info-bg: #e0f2fe;
+    --tb-info-text: #075985;
+    --tb-info-border: #bae6fd;
+
+    /* Assignee / Resource (Indigo) */
+    --tb-resource: #4f46e5;
+    --tb-resource-bg: #eef2ff;
+    --tb-resource-text: #3730a3;
+    --tb-resource-border: #c7d2fe;
+
+    /* Blocked / Destructive / Overallocated (Rose) */
+    --tb-danger: #e11d48;
+    --tb-danger-bg: #ffe4e6;
+    --tb-danger-text: #9f1239;
+    --tb-danger-border: #fecdd3;
+
+    /* Focus & Overlay */
+    --tb-focus-ring: 0 0 0 2px rgba(124, 58, 237, 0.25);
+    --tb-overlay-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05), 0 1px 2px -1px rgba(15, 23, 42, 0.05);
+    --tb-weekend-fill: rgba(148, 163, 184, 0.12);
+}
+
+/* Dark Theme Implementation */
+.theme-dark {
+    /* Canvas & Surfaces */
+    --tb-canvas-base: #0f0f12;
+    --tb-canvas-sunken: #16161a;
+    --tb-surface-pure: #1e1e24;
+    --tb-surface-hover: #26262e;
+    --tb-surface-active: #2d1b4e;
+    --tb-surface-read-only: #16161a;
+
+    /* Hairline Dividers & Borders */
+    --tb-border-soft: #23232c;
+    --tb-border-strong: #2c2c36;
+    --tb-border-subtle: rgba(44, 44, 54, 0.7);
+
+    /* Text Spectrum */
+    --tb-text-high: #f8fafc;
+    --tb-text-medium: #94a3b8;
+    --tb-text-muted: #64748b;
+    --tb-text-faint: #334155;
+
+    /* Primary Accent (Obsidian Violet) */
+    --tb-primary: #8b5cf6;
+    --tb-primary-hover: #7c3aed;
+    --tb-primary-active: #6d28d9;
+    --tb-primary-subtle: #2d1b4e;
+    --tb-primary-border: #6d28d9;
+    --tb-on-primary: #ffffff;
+
+    /* Semantic Roles */
+    /* Critical Path / Warning (Amber) */
+    --tb-critical: #f59e0b;
+    --tb-critical-bg: #451a03;
+    --tb-critical-text: #fcd34d;
+    --tb-critical-border: #78350f;
+
+    /* Progress / Complete (Emerald) */
+    --tb-success: #10b981;
+    --tb-success-bg: #064e3b;
+    --tb-success-text: #6ee7b7;
+    --tb-success-border: #047857;
+
+    /* Milestone / Active Task (Sky) */
+    --tb-info: #38bdf8;
+    --tb-info-bg: #082f49;
+    --tb-info-text: #7dd3fc;
+    --tb-info-border: #0369a1;
+
+    /* Assignee / Resource (Indigo) */
+    --tb-resource: #6366f1;
+    --tb-resource-bg: #1e1b4b;
+    --tb-resource-text: #a5b4fc;
+    --tb-resource-border: #4338ca;
+
+    /* Blocked / Destructive / Overallocated (Rose) */
+    --tb-danger: #f43f5e;
+    --tb-danger-bg: #4c0519;
+    --tb-danger-text: #fda4af;
+    --tb-danger-border: #9f1239;
+
+    /* Focus & Overlay */
+    --tb-focus-ring: 0 0 0 2px rgba(139, 92, 246, 0.35);
+    --tb-overlay-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px -1px rgba(0, 0, 0, 0.2);
+    --tb-weekend-fill: rgba(22, 22, 28, 0.6);
+}
+
+/* Base Utility Classes */
+.timebox-tabular-num {
+    font-family: var(--tb-font-mono) !important;
+    font-variant-numeric: tabular-nums !important;
+}
+
+.timebox-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: var(--tb-control-height-md);
+    padding: 0 12px;
+    background: var(--tb-primary);
+    color: var(--tb-on-primary) !important;
+    border: none;
+    border-radius: var(--tb-radius-sm);
+    font-family: var(--tb-font-sans);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease, transform 0.05s ease;
+}
+
+.timebox-btn-primary:hover {
+    background: var(--tb-primary-hover);
+}
+
+.timebox-btn-primary:active {
+    background: var(--tb-primary-active);
+    transform: scale(0.99);
+}
+
+.timebox-btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: var(--tb-control-height-md);
+    padding: 0 10px;
+    background: var(--tb-surface-pure);
+    color: var(--tb-text-high) !important;
+    border: 1px solid var(--tb-border-strong);
+    border-radius: var(--tb-radius-sm);
+    font-family: var(--tb-font-sans);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.timebox-btn-secondary:hover {
+    background: var(--tb-surface-hover);
+    border-color: var(--tb-border-strong);
+}
+
+.timebox-btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: var(--tb-control-height-md);
+    padding: 0 8px;
+    background: transparent;
+    color: var(--tb-text-medium) !important;
+    border: 1px solid transparent;
+    border-radius: var(--tb-radius-sm);
+    font-family: var(--tb-font-sans);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.timebox-btn-ghost:hover {
+    background: var(--tb-surface-hover);
+    color: var(--tb-text-high) !important;
+}
+
+/* Standardized Status Pills (DESIGN.md) */
+.timebox-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: var(--tb-radius-pill);
+    font-family: var(--tb-font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.timebox-pill.is-critical {
+    background: var(--tb-critical-bg);
+    color: var(--tb-critical-text);
+    border: 1px solid var(--tb-critical-border);
+}
+
+.timebox-pill.is-success {
+    background: var(--tb-success-bg);
+    color: var(--tb-success-text);
+    border: 1px solid var(--tb-success-border);
+}
+
+.timebox-pill.is-info {
+    background: var(--tb-info-bg);
+    color: var(--tb-info-text);
+    border: 1px solid var(--tb-info-border);
+}
+
+.timebox-pill.is-resource {
+    background: var(--tb-resource-bg);
+    color: var(--tb-resource-text);
+    border: 1px solid var(--tb-resource-border);
+}
+
+.timebox-pill.is-danger {
+    background: var(--tb-danger-bg);
+    color: var(--tb-danger-text);
+    border: 1px solid var(--tb-danger-border);
+}
+
+/* Calculated / Read-Only Field Treatment (Clear distinction without disabled appearance) */
+.timebox-readonly-display {
+    background: var(--tb-surface-read-only) !important;
+    border: 1px solid var(--tb-border-soft) !important;
+    color: var(--tb-text-medium) !important;
+    font-family: var(--tb-font-mono) !important;
+    font-variant-numeric: tabular-nums !important;
+    cursor: default !important;
+}
+
+/* ==========================================================================
+   TimeBox Gantt Timeline View (Modern Functional Modernism)
    ========================================================================== */
 
 .timebox-gantt-view {
@@ -678,8 +982,9 @@ a.timebox-github-btn {
     height: 100%;
     width: 100%;
     overflow: hidden;
-    font-family: var(--font-text);
-    background-color: var(--background-primary);
+    font-family: var(--tb-font-sans);
+    background-color: var(--tb-canvas-base);
+    color: var(--tb-text-high);
 }
 
 /* Toolbar */
@@ -689,10 +994,11 @@ a.timebox-github-btn {
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 8px;
-    padding: 8px 14px;
-    background-color: var(--background-secondary);
-    border-bottom: 1px solid var(--background-modifier-border);
-    min-height: 48px;
+    padding: 6px 14px;
+    background-color: var(--tb-surface-pure);
+    border-bottom: 1px solid var(--tb-border-soft);
+    min-height: 44px;
+    box-sizing: border-box;
 }
 
 .timebox-gantt-toolbar-left,
@@ -700,23 +1006,36 @@ a.timebox-github-btn {
 .timebox-gantt-toolbar-right {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
 }
 
 .timebox-gantt-label {
-    font-size: 0.85em;
+    font-family: var(--tb-font-sans);
+    font-size: 11px;
     font-weight: 600;
-    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--tb-text-muted);
 }
 
 .timebox-gantt-project-select {
-    font-size: 0.85em;
-    padding: 4px 8px;
-    border-radius: 4px;
-    border: 1px solid var(--background-modifier-border);
-    background-color: var(--background-primary);
-    color: var(--text-normal);
+    font-family: var(--tb-font-sans);
+    font-size: 12px;
+    font-weight: 500;
+    height: var(--tb-control-height-md);
+    padding: 0 8px;
+    border-radius: var(--tb-radius-sm);
+    border: 1px solid var(--tb-border-strong);
+    background-color: var(--tb-surface-pure);
+    color: var(--tb-text-high);
     max-width: 220px;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.timebox-gantt-project-select:focus {
+    border-color: var(--tb-primary);
+    box-shadow: var(--tb-focus-ring);
 }
 
 .timebox-gantt-start-group {
@@ -726,73 +1045,132 @@ a.timebox-github-btn {
 }
 
 .timebox-gantt-start-select {
-    font-size: 0.82em;
-    padding: 3px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--background-modifier-border);
-    background-color: var(--background-primary);
-    color: var(--text-normal);
+    font-family: var(--tb-font-sans);
+    font-size: 11px;
+    height: var(--tb-control-height-sm);
+    padding: 0 6px;
+    border-radius: var(--tb-radius-sm);
+    border: 1px solid var(--tb-border-strong);
+    background-color: var(--tb-surface-pure);
+    color: var(--tb-text-high);
+    outline: none;
+    transition: border-color 0.15s ease;
+}
+
+.timebox-gantt-start-select:focus {
+    border-color: var(--tb-primary);
 }
 
 .timebox-gantt-button-group {
     display: inline-flex;
-    border-radius: 4px;
-    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--tb-radius-sm);
+    border: 1px solid var(--tb-border-strong);
     overflow: hidden;
-    background-color: var(--background-primary);
+    background-color: var(--tb-surface-pure);
 }
 
-.timebox-gantt-zoom-btn {
+.timebox-gantt-button-group > button {
     border: none;
+    border-right: 1px solid var(--tb-border-soft);
     background: transparent;
-    padding: 3px 10px;
-    font-size: 0.8em;
-    color: var(--text-muted);
+    padding: 0 8px;
+    height: var(--tb-control-height-sm);
+    font-family: var(--tb-font-sans);
+    font-size: 11px;
+    color: var(--tb-text-medium);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: background 0.15s ease, color 0.15s ease;
 }
 
-.timebox-gantt-zoom-btn:hover {
-    color: var(--text-normal);
-    background-color: var(--background-modifier-hover);
+.timebox-gantt-button-group > button:last-child {
+    border-right: none;
+}
+
+.timebox-gantt-button-group > button:hover {
+    background: var(--tb-surface-hover);
+    color: var(--tb-text-high);
 }
 
 .timebox-gantt-zoom-btn.is-active {
-    background-color: var(--interactive-accent);
-    color: var(--text-on-accent);
+    background-color: var(--tb-primary-subtle);
+    color: var(--tb-primary);
     font-weight: 600;
 }
 
 .timebox-gantt-today-btn {
-    border: 1px solid var(--background-modifier-border);
-    background-color: var(--background-primary);
-    color: var(--text-normal);
-    border-radius: 4px;
-    padding: 3px 10px;
-    font-size: 0.8em;
+    border: 1px solid var(--tb-border-strong);
+    background-color: var(--tb-surface-pure);
+    color: var(--tb-text-high);
+    border-radius: var(--tb-radius-sm);
+    height: var(--tb-control-height-sm);
+    padding: 0 10px;
+    font-family: var(--tb-font-sans);
+    font-size: 11px;
+    font-weight: 500;
     cursor: pointer;
-    transition: background 0.15s ease;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .timebox-gantt-today-btn:hover {
-    background-color: var(--background-modifier-hover);
-    color: var(--interactive-accent);
+    background-color: var(--tb-surface-hover);
+    border-color: var(--tb-border-strong);
+    color: var(--tb-text-high);
+}
+
+.timebox-gantt-today-btn.is-active-status {
+    background: var(--tb-critical-bg);
+    border-color: var(--tb-critical-border);
+    color: var(--tb-critical-text);
+    font-weight: 600;
 }
 
 .timebox-gantt-action-btn {
     border: none;
-    background-color: var(--interactive-accent);
-    color: var(--text-on-accent);
-    border-radius: 4px;
-    padding: 4px 10px;
-    font-size: 0.82em;
-    font-weight: 500;
+    background-color: var(--tb-primary);
+    color: var(--tb-on-primary);
+    border-radius: var(--tb-radius-sm);
+    height: var(--tb-control-height-md);
+    padding: 0 12px;
+    font-family: var(--tb-font-sans);
+    font-size: 12px;
+    font-weight: 600;
     cursor: pointer;
-    transition: filter 0.15s ease;
+    user-select: none;
+    transition: background 0.15s ease, transform 0.05s ease;
 }
 
 .timebox-gantt-action-btn:hover {
-    filter: brightness(1.1);
+    background-color: var(--tb-primary-hover);
+}
+
+.timebox-gantt-action-btn:active {
+    background-color: var(--tb-primary-active);
+    transform: scale(0.99);
+}
+
+.timebox-task-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--tb-radius-sm);
+    background: transparent;
+    color: var(--tb-text-medium);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.timebox-task-icon-btn:hover {
+    background: var(--tb-surface-hover);
+    color: var(--tb-text-high);
+}
+
+.timebox-task-icon-btn.is-disabled {
+    opacity: 0.35;
+    pointer-events: none;
 }
 
 /* Workspace Splitter Layout */
@@ -1087,24 +1465,23 @@ body.is-resizing-gantt-splitter {
 }
 
 .timebox-gantt-grid-line {
-    stroke: var(--background-modifier-border);
+    stroke: var(--tb-border-soft);
+    stroke-width: 1px;
+    opacity: 0.45;
+}
+
+.timebox-gantt-row-line {
+    stroke: var(--tb-border-soft);
     stroke-width: 1px;
     opacity: 0.35;
 }
 
-.timebox-gantt-row-line {
-    stroke: var(--background-modifier-border);
-    stroke-width: 1px;
-    opacity: 0.25;
-}
-
 .timebox-gantt-weekend-shading {
-    fill: var(--background-secondary);
-    opacity: 0.45;
+    fill: var(--tb-weekend-fill);
 }
 
 .timebox-gantt-today-line {
-    stroke: var(--interactive-accent);
+    stroke: var(--tb-primary);
     stroke-width: 2px;
     stroke-dasharray: 4 3;
 }
@@ -1112,37 +1489,38 @@ body.is-resizing-gantt-splitter {
 /* Task Bars */
 .timebox-gantt-task-bar {
     position: absolute;
-    background: var(--interactive-accent);
+    background: var(--tb-info);
     color: #ffffff !important;
-    border-radius: 4px;
-    font-size: 0.75em;
+    border-radius: var(--tb-radius-sm);
+    font-family: var(--tb-font-sans);
+    font-size: 11px;
     font-weight: 600;
     display: flex;
     align-items: center;
     padding: 0 8px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.15);
     cursor: grab;
     user-select: none;
     box-sizing: border-box;
     transition: filter 0.12s ease, opacity 0.12s ease;
     z-index: 1;
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.25);
 }
 
 .timebox-gantt-task-bar:hover {
-    filter: brightness(1.12);
+    filter: brightness(1.08);
 }
 
 .timebox-gantt-task-bar.is-dragging {
     cursor: grabbing;
-    opacity: 0.85;
+    opacity: 0.9;
     z-index: 10;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
 .timebox-gantt-task-bar.is-completed {
-    background: var(--text-success);
-    opacity: 0.7;
+    background: var(--tb-success);
+    opacity: 0.75;
     text-decoration: line-through;
 }
 
@@ -1152,9 +1530,10 @@ body.is-resizing-gantt-splitter {
     white-space: nowrap;
     pointer-events: none;
     color: #ffffff !important;
+    font-family: var(--tb-font-sans);
     font-size: 11px;
     font-weight: 600;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
 }
 
 .timebox-gantt-drag-handle.is-right {
@@ -1162,55 +1541,57 @@ body.is-resizing-gantt-splitter {
     right: 0;
     top: 0;
     bottom: 0;
-    width: 8px;
+    width: 6px;
     cursor: ew-resize;
     background: transparent;
-    border-top-right-radius: 4px;
-    border-bottom-right-radius: 4px;
+    border-top-right-radius: var(--tb-radius-sm);
+    border-bottom-right-radius: var(--tb-radius-sm);
+    transition: background-color 0.15s ease;
 }
 
 .timebox-gantt-drag-handle.is-right:hover {
-    background-color: rgba(255, 255, 255, 0.3);
+    background-color: rgba(255, 255, 255, 0.4);
 }
 
 /* Summary Bar & Milestone SVGs */
 .timebox-gantt-summary-bar {
-    fill: var(--text-normal);
+    fill: var(--tb-text-high);
 }
 
 .timebox-gantt-summary-triangle {
-    fill: var(--text-normal);
+    fill: var(--tb-text-high);
 }
 
 .timebox-gantt-summary-group.is-completed .timebox-gantt-summary-bar,
 .timebox-gantt-summary-group.is-completed .timebox-gantt-summary-triangle {
-    fill: var(--text-success);
-    opacity: 0.6;
+    fill: var(--tb-success);
+    opacity: 0.7;
 }
 
 .timebox-gantt-milestone {
-    fill: var(--interactive-accent);
-    stroke: var(--background-primary);
+    fill: var(--tb-primary);
+    stroke: var(--tb-surface-pure);
     stroke-width: 1.5px;
     cursor: pointer;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15));
 }
 
 .timebox-gantt-milestone.is-completed {
-    fill: var(--text-success);
-    opacity: 0.6;
+    fill: var(--tb-success);
+    opacity: 0.8;
 }
 
 .timebox-gantt-bar-label {
     font-size: 11px;
-    fill: var(--text-normal);
-    font-family: var(--font-text);
+    fill: var(--tb-text-high);
+    font-family: var(--tb-font-sans);
 }
 
 /* WBS Row Selection & Predecessor Blocking */
 .timebox-gantt-wbs-row.timebox-wbs-row-active {
-    background-color: var(--interactive-accent) !important;
-    border-left: 3px solid var(--text-on-accent, #ffffff) !important;
-    color: #ffffff !important;
+    background-color: var(--tb-surface-active) !important;
+    border-left: 3px solid var(--tb-primary) !important;
+    color: var(--tb-text-high) !important;
 }
 
 .timebox-gantt-wbs-row.timebox-wbs-row-active .timebox-wbs-col-id,
@@ -1221,39 +1602,32 @@ body.is-resizing-gantt-splitter {
 .timebox-gantt-wbs-row.timebox-wbs-row-active .timebox-wbs-col-dur,
 .timebox-gantt-wbs-row.timebox-wbs-row-active .timebox-wbs-col-pred,
 .timebox-gantt-wbs-row.timebox-wbs-row-active .timebox-wbs-col-res,
-.timebox-gantt-wbs-row.timebox-wbs-row-active .timebox-wbs-col-task,
-.timebox-gantt-wbs-row.timebox-wbs-row-active span,
-.timebox-gantt-wbs-row.timebox-wbs-row-active button {
-    color: #ffffff !important;
+.timebox-gantt-wbs-row.timebox-wbs-row-active .timebox-wbs-col-task {
+    color: var(--tb-text-high) !important;
 }
 
 .timebox-gantt-wbs-row.timebox-wbs-row-active svg {
-    stroke: #ffffff !important;
-}
-
-.timebox-gantt-wbs-row.timebox-wbs-row-active .timebox-wbs-title {
-    color: #ffffff !important;
-    opacity: 1 !important;
+    stroke: var(--tb-primary) !important;
 }
 
 /* Default / Unselected Row Colors */
 .timebox-gantt-wbs-row:not(.timebox-wbs-row-active) .timebox-wbs-title {
-    color: var(--text-normal);
+    color: var(--tb-text-high);
 }
 
 .timebox-gantt-wbs-row.is-project-title-row {
     font-weight: 700;
-    background-color: var(--background-secondary) !important;
-    border-bottom: 2px solid var(--background-modifier-border);
+    background-color: var(--tb-canvas-sunken) !important;
+    border-bottom: 2px solid var(--tb-border-strong);
 }
 
 .timebox-gantt-wbs-row.is-project-title-row .timebox-wbs-col-id {
     font-weight: 700;
-    color: var(--interactive-accent);
+    color: var(--tb-primary);
 }
 
 .timebox-gantt-wbs-row.is-blocked .timebox-wbs-title {
-    color: var(--text-muted);
+    color: var(--tb-text-muted);
 }
 
 .timebox-wbs-lock-icon {
@@ -1267,93 +1641,103 @@ body.is-resizing-gantt-splitter {
 .timebox-wbs-add-row {
     display: flex;
     align-items: center;
-    height: 36px;
+    height: var(--tb-row-height-dense);
     padding: 0 8px;
-    border-bottom: 1px dashed var(--background-modifier-border);
-    background: var(--background-primary-alt);
+    border-bottom: 1px dashed var(--tb-border-soft);
+    background: var(--tb-canvas-base);
     opacity: 0.9;
 }
 
 .timebox-wbs-add-row:hover,
 .timebox-wbs-add-row:focus-within {
     opacity: 1;
-    background: var(--background-modifier-hover);
+    background: var(--tb-surface-hover);
 }
 
 .timebox-wbs-add-input {
     width: 100%;
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 3px;
-    font-size: 0.85em;
+    border-radius: var(--tb-radius-xs);
+    font-family: var(--tb-font-sans);
+    font-size: 12px;
     padding: 2px 6px;
-    color: var(--text-normal);
+    color: var(--tb-text-high);
     outline: none;
 }
 
 .timebox-wbs-add-input:focus {
-    border-color: var(--interactive-accent);
-    background: var(--background-primary);
+    border-color: var(--tb-primary);
+    background: var(--tb-surface-pure);
 }
 
 /* Inline Table Editors */
 .timebox-wbs-inline-input {
-    background: var(--background-primary);
-    border: 1px solid var(--interactive-accent);
-    border-radius: 3px;
-    font-size: 0.85em;
+    background: var(--tb-surface-pure);
+    border: 1px solid var(--tb-primary);
+    border-radius: var(--tb-radius-xs);
+    font-family: var(--tb-font-sans);
+    font-size: 12px;
     padding: 1px 4px;
     width: 100%;
     box-sizing: border-box;
-    color: var(--text-normal);
+    color: var(--tb-text-high);
     outline: none;
 }
 
 .timebox-wbs-inline-input.is-date {
     padding: 0 1px;
-    font-size: 0.78em;
+    font-size: 11px;
+    font-family: var(--tb-font-mono);
 }
 
 .timebox-wbs-inline-input.is-number {
     text-align: center;
+    font-family: var(--tb-font-mono);
 }
 
 /* Predecessor SVG Dependency Lines */
 .timebox-gantt-dep-path {
     fill: none;
-    stroke: var(--interactive-accent);
+    stroke: var(--tb-text-muted);
     stroke-width: 1.5px;
     stroke-linecap: round;
     stroke-linejoin: round;
-    opacity: 0.8;
+    opacity: 0.85;
+    transition: stroke 0.15s ease, stroke-width 0.15s ease;
+}
+
+.timebox-gantt-dep-path:hover {
+    stroke: var(--tb-primary);
+    stroke-width: 2px;
 }
 
 .timebox-gantt-dep-path.is-blocked {
-    stroke: var(--text-error);
+    stroke: var(--tb-danger);
     stroke-dasharray: 4 2;
     opacity: 0.9;
 }
 
 .timebox-gantt-dep-path.is-completed {
-    stroke: var(--text-success);
-    opacity: 0.6;
+    stroke: var(--tb-success);
+    opacity: 0.75;
 }
 
 .timebox-gantt-marker-normal {
-    fill: var(--interactive-accent);
+    fill: var(--tb-text-muted);
 }
 
 .timebox-gantt-marker-blocked {
-    fill: var(--text-error);
+    fill: var(--tb-danger);
 }
 
 .timebox-gantt-marker-completed {
-    fill: var(--text-success);
+    fill: var(--tb-success);
 }
 
 /* Weekend Bridge & Blocked Bar */
 .timebox-gantt-weekend-bridge {
-    stroke: var(--text-muted);
+    stroke: var(--tb-text-muted);
     stroke-width: 1.5px;
     stroke-dasharray: 3 3;
     opacity: 0.55;
@@ -1361,18 +1745,20 @@ body.is-resizing-gantt-splitter {
 
 .timebox-gantt-task-bar.is-blocked {
     opacity: 0.75;
-    border: 1px dashed var(--text-error);
+    border: 1px dashed var(--tb-danger);
 }
 
 /* Resource Badges */
 .timebox-gantt-resource-tag {
     position: absolute;
+    font-family: var(--tb-font-sans);
     font-size: 10px;
-    color: var(--text-muted);
-    background: var(--background-secondary-alt);
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 3px;
-    padding: 1px 4px;
+    font-weight: 500;
+    color: var(--tb-resource-text);
+    background: var(--tb-resource-bg);
+    border: 1px solid var(--tb-resource-border);
+    border-radius: var(--tb-radius-pill);
+    padding: 1px 6px;
     white-space: nowrap;
     pointer-events: none;
     user-select: none;
@@ -1382,14 +1768,44 @@ body.is-resizing-gantt-splitter {
 /* Task Information Modal */
 .timebox-task-info-modal {
     min-width: 440px;
-    max-width: 540px;
+    max-width: min(580px, 94vw);
+    font-family: var(--tb-font-sans);
+    color: var(--tb-text-high);
+}
+
+.timebox-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--tb-border-soft);
+    margin-bottom: 8px;
+}
+
+.timebox-modal-header h3 {
+    margin: 0;
+    font-family: var(--tb-font-sans);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--tb-text-high);
+}
+
+.timebox-modal-wbs-tag {
+    font-family: var(--tb-font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    background: var(--tb-canvas-sunken);
+    border: 1px solid var(--tb-border-soft);
+    border-radius: var(--tb-radius-pill);
+    padding: 2px 8px;
+    color: var(--tb-text-medium);
 }
 
 .timebox-task-info-form {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
-    margin: 16px 0;
+    margin: 12px 0;
 }
 
 .timebox-task-info-form .timebox-form-row {
@@ -1399,9 +1815,12 @@ body.is-resizing-gantt-splitter {
 }
 
 .timebox-task-info-form .timebox-form-row label {
-    font-size: 0.82em;
-    color: var(--text-muted);
-    font-weight: 500;
+    font-family: var(--tb-font-sans);
+    font-size: 11px;
+    color: var(--tb-text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
 
 .timebox-task-info-form .timebox-form-row input[type="text"],
@@ -1410,12 +1829,27 @@ body.is-resizing-gantt-splitter {
 .timebox-task-info-form .timebox-form-row textarea {
     width: 100%;
     box-sizing: border-box;
-    font-family: inherit;
-    font-size: 0.85em;
+    font-family: var(--tb-font-sans);
+    font-size: 12px;
+    color: var(--tb-text-high);
+    background-color: var(--tb-surface-pure);
+    border: 1px solid var(--tb-border-strong);
+    border-radius: var(--tb-radius-sm);
+    padding: 5px 8px;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.timebox-task-info-form .timebox-form-row input[type="text"]:focus,
+.timebox-task-info-form .timebox-form-row input[type="date"]:focus,
+.timebox-task-info-form .timebox-form-row input[type="number"]:focus,
+.timebox-task-info-form .timebox-form-row textarea:focus {
+    border-color: var(--tb-primary);
+    box-shadow: var(--tb-focus-ring);
 }
 
 .timebox-task-info-form .timebox-form-row textarea {
-    min-height: 60px;
+    min-height: 54px;
     resize: vertical;
 }
 
@@ -1426,9 +1860,9 @@ body.is-resizing-gantt-splitter {
 .timebox-task-info-form .timebox-form-row.flags-row {
     display: flex;
     flex-direction: row;
-    gap: 20px;
+    gap: 16px;
     align-items: center;
-    margin-top: 4px;
+    margin-top: 2px;
 }
 
 .timebox-checkbox-label {
@@ -1436,18 +1870,19 @@ body.is-resizing-gantt-splitter {
     align-items: center;
     gap: 6px;
     cursor: pointer;
-    font-size: 0.85em;
-    color: var(--text-normal);
+    font-family: var(--tb-font-sans);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--tb-text-high);
+    user-select: none;
 }
 
-.timebox-modal-wbs-tag {
-    font-size: 0.78em;
-    background: var(--background-secondary-alt);
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 4px;
-    padding: 2px 6px;
-    margin-left: 8px;
-    color: var(--text-muted);
+.timebox-checkbox-label input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    border-radius: var(--tb-radius-xs);
+    accent-color: var(--tb-primary);
+    cursor: pointer;
 }
 
 .timebox-modal-footer-split {
@@ -1456,12 +1891,38 @@ body.is-resizing-gantt-splitter {
     align-items: center;
     margin-top: 16px;
     padding-top: 12px;
-    border-top: 1px solid var(--background-modifier-border);
+    border-top: 1px solid var(--tb-border-soft);
 }
 
 .timebox-modal-footer-right {
     display: flex;
     gap: 8px;
+}
+
+.timebox-form-section-title {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--tb-border-soft);
+}
+
+.timebox-form-section-title h4 {
+    margin: 0;
+    font-family: var(--tb-font-sans);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--tb-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.timebox-task-info-form input.timebox-readonly-input {
+    background-color: var(--tb-surface-read-only) !important;
+    color: var(--tb-text-medium) !important;
+    font-family: var(--tb-font-mono) !important;
+    font-variant-numeric: tabular-nums !important;
+    border: 1px solid var(--tb-border-soft) !important;
+    cursor: default !important;
 }
 
 /* ==========================================================================
@@ -1470,10 +1931,10 @@ body.is-resizing-gantt-splitter {
 
 .timebox-view-switcher-bar {
     display: flex;
-    gap: 6px;
+    gap: 4px;
     padding: 6px 14px;
-    background: var(--background-secondary);
-    border-bottom: 1px solid var(--background-modifier-border);
+    background: var(--tb-canvas-sunken);
+    border-bottom: 1px solid var(--tb-border-soft);
     align-items: center;
     flex-shrink: 0;
 }
@@ -1483,60 +1944,37 @@ body.is-resizing-gantt-splitter {
     align-items: center;
     gap: 6px;
     padding: 5px 12px;
-    font-size: 11px;
+    font-family: var(--tb-font-sans);
+    font-size: 12px;
     font-weight: 500;
-    border-radius: 5px;
+    border-radius: var(--tb-radius-sm);
     border: 1px solid transparent;
     background: transparent;
-    color: var(--text-muted);
+    color: var(--tb-text-medium);
     cursor: pointer;
-    transition: all 0.15s ease;
+    user-select: none;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .timebox-view-tab-btn:hover {
-    background: var(--background-modifier-hover);
-    color: var(--text-normal);
+    background: var(--tb-surface-hover);
+    color: var(--tb-text-high);
 }
 
 .timebox-view-tab-btn.is-active {
-    background: var(--interactive-accent);
-    color: var(--text-on-accent);
+    background: var(--tb-surface-pure);
+    color: var(--tb-primary);
+    border-color: var(--tb-border-soft);
     font-weight: 600;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--tb-overlay-shadow);
 }
 
 .timebox-tab-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-}
-
-.timebox-gantt-toggle-btn {
-    padding: 4px 9px;
-    font-size: 11px;
-    border-radius: 4px;
-    border: 1px solid var(--background-modifier-border);
-    background: var(--background-primary);
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-
-.timebox-gantt-toggle-btn:hover {
-    background: var(--background-modifier-hover);
-    color: var(--text-normal);
-}
-
-.timebox-gantt-toggle-btn.is-active {
-    background: var(--interactive-accent);
-    color: var(--text-on-accent);
-    border-color: var(--interactive-accent);
-    font-weight: 600;
-}
-
-.timebox-task-icon-btn.is-disabled {
-    opacity: 0.35;
-    pointer-events: none;
+    width: 14px;
+    height: 14px;
 }
 
 /* ==========================================================================
@@ -1546,20 +1984,23 @@ body.is-resizing-gantt-splitter {
 .timebox-validation-banner {
     margin: 8px 14px 4px 14px;
     padding: 8px 12px;
-    border-radius: 6px;
-    border-left: 4px solid;
+    border-radius: var(--tb-radius-md);
+    border-left: 3px solid;
     font-size: 12px;
+    font-family: var(--tb-font-sans);
     flex-shrink: 0;
 }
 
 .timebox-validation-banner.is-error {
-    border-color: var(--text-error, #f87171);
-    background: rgba(239, 68, 68, 0.12);
+    border-color: var(--tb-danger);
+    background: var(--tb-danger-bg);
+    color: var(--tb-danger-text);
 }
 
 .timebox-validation-banner.is-warning {
-    border-color: var(--text-warning, #f59e0b);
-    background: rgba(245, 158, 11, 0.12);
+    border-color: var(--tb-critical);
+    background: var(--tb-critical-bg);
+    color: var(--tb-critical-text);
 }
 
 .timebox-validation-header {
@@ -1582,16 +2023,18 @@ body.is-resizing-gantt-splitter {
 .timebox-validation-details-btn {
     padding: 2px 8px;
     font-size: 11px;
+    font-family: var(--tb-font-sans);
     background: transparent;
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 4px;
+    border: 1px solid var(--tb-border-strong);
+    border-radius: var(--tb-radius-sm);
     cursor: pointer;
+    color: inherit;
 }
 
 .timebox-validation-details {
     margin-top: 8px;
     padding-top: 8px;
-    border-top: 1px dashed var(--background-modifier-border);
+    border-top: 1px dashed var(--tb-border-soft);
 }
 
 .timebox-validation-list {
@@ -1614,27 +2057,28 @@ body.is-resizing-gantt-splitter {
     font-size: 9px;
     font-weight: 700;
     padding: 1px 5px;
-    border-radius: 3px;
+    border-radius: var(--tb-radius-xs);
     text-transform: uppercase;
+    font-family: var(--tb-font-mono);
 }
 
 .timebox-validation-badge.is-error {
-    background: var(--text-error, #ef4444);
+    background: var(--tb-danger);
     color: #ffffff;
 }
 
 .timebox-validation-badge.is-warning {
-    background: var(--text-warning, #f59e0b);
-    color: #000000;
+    background: var(--tb-critical);
+    color: #ffffff;
 }
 
 .timebox-validation-type {
-    font-family: var(--font-monospace);
-    color: var(--text-muted);
+    font-family: var(--tb-font-mono);
+    color: var(--tb-text-muted);
 }
 
 /* ==========================================================================
-   Task Sheet View
+   Task Sheet View & Discovery Deck (Modern Precision Grid)
    ========================================================================== */
 
 .timebox-task-sheet-pane {
@@ -1642,8 +2086,355 @@ body.is-resizing-gantt-splitter {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    padding: 12px 14px;
+    padding: 10px 14px;
     gap: 8px;
+    background: var(--tb-canvas-base);
+}
+
+.timebox-discovery-deck {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--tb-canvas-sunken);
+    border: 1px solid var(--tb-border-soft);
+    border-radius: var(--tb-radius-md);
+}
+
+.timebox-discovery-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.timebox-discovery-main-row {
+    justify-content: flex-start;
+}
+
+.timebox-search-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1 1 240px;
+    min-width: 200px;
+}
+
+.timebox-sheet-search-input {
+    width: 100%;
+    height: var(--tb-control-height-md);
+    font-family: var(--tb-font-sans);
+    font-size: 12px;
+    padding: 0 28px 0 10px;
+    border-radius: var(--tb-radius-sm);
+    border: 1px solid var(--tb-border-strong);
+    background: var(--tb-surface-pure);
+    color: var(--tb-text-high);
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.timebox-sheet-search-input:focus {
+    border-color: var(--tb-primary);
+    box-shadow: var(--tb-focus-ring);
+}
+
+.timebox-search-clear-btn {
+    position: absolute;
+    right: 6px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--tb-text-muted);
+    padding: 2px 4px;
+    border-radius: var(--tb-radius-xs);
+    transition: color 0.15s ease;
+}
+
+.timebox-search-clear-btn:hover {
+    color: var(--tb-text-high);
+}
+
+.timebox-saved-views-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.timebox-control-label {
+    font-family: var(--tb-font-sans);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--tb-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.timebox-saved-view-select {
+    height: var(--tb-control-height-sm);
+    font-family: var(--tb-font-sans);
+    font-size: 12px;
+    border-radius: var(--tb-radius-sm);
+    border: 1px solid var(--tb-border-strong);
+    background: var(--tb-surface-pure);
+    color: var(--tb-text-high);
+    max-width: 170px;
+    outline: none;
+}
+
+.timebox-save-view-btn {
+    height: var(--tb-control-height-sm);
+    font-family: var(--tb-font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 0 8px;
+    background: var(--tb-surface-pure);
+    border: 1px solid var(--tb-border-strong);
+    border-radius: var(--tb-radius-sm);
+    color: var(--tb-text-high);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.timebox-save-view-btn:hover {
+    background: var(--tb-surface-hover);
+}
+
+.timebox-discovery-counter-box {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--tb-font-sans);
+    font-size: 11px;
+    color: var(--tb-text-muted);
+    margin-left: auto;
+}
+
+.timebox-discovery-counter {
+    font-family: var(--tb-font-mono);
+    font-weight: 600;
+    color: var(--tb-text-medium);
+}
+
+.timebox-filter-badge {
+    background: var(--tb-primary);
+    color: var(--tb-on-primary);
+    padding: 1px 6px;
+    border-radius: var(--tb-radius-pill);
+    font-family: var(--tb-font-mono);
+    font-size: 10px;
+    font-weight: 600;
+}
+
+.timebox-clear-filters-btn {
+    height: var(--tb-control-height-sm);
+    font-family: var(--tb-font-sans);
+    font-size: 11px;
+    padding: 0 8px;
+    background: transparent;
+    border: 1px solid var(--tb-border-soft);
+    border-radius: var(--tb-radius-sm);
+    color: var(--tb-text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.timebox-clear-filters-btn:hover {
+    color: var(--tb-danger-text);
+    border-color: var(--tb-danger-border);
+    background: var(--tb-danger-bg);
+}
+
+.timebox-filter-chips {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.timebox-chip {
+    font-family: var(--tb-font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 10px;
+    border-radius: var(--tb-radius-pill);
+    border: 1px solid var(--tb-border-strong);
+    background: var(--tb-surface-pure);
+    color: var(--tb-text-medium);
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease;
+}
+
+.timebox-chip:hover {
+    background: var(--tb-surface-hover);
+    color: var(--tb-text-high);
+}
+
+.timebox-chip.is-active {
+    background: var(--tb-primary-subtle);
+    color: var(--tb-primary);
+    border-color: var(--tb-primary);
+    font-weight: 600;
+}
+
+.timebox-filter-dropdowns {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.timebox-filter-dropdowns select {
+    height: var(--tb-control-height-sm);
+    font-family: var(--tb-font-sans);
+    font-size: 11px;
+    max-width: 140px;
+    border-radius: var(--tb-radius-sm);
+    border: 1px solid var(--tb-border-strong);
+    background: var(--tb-surface-pure);
+    color: var(--tb-text-high);
+    outline: none;
+}
+
+.timebox-group-segmented-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.timebox-segmented-group {
+    display: inline-flex;
+    border: 1px solid var(--tb-border-strong);
+    border-radius: var(--tb-radius-sm);
+    overflow: hidden;
+    background: var(--tb-surface-pure);
+}
+
+.timebox-seg-btn {
+    font-family: var(--tb-font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 0 9px;
+    height: var(--tb-control-height-sm);
+    border: none;
+    border-right: 1px solid var(--tb-border-soft);
+    background: transparent;
+    color: var(--tb-text-medium);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.timebox-seg-btn:last-child {
+    border-right: none;
+}
+
+.timebox-seg-btn:hover {
+    background: var(--tb-surface-hover);
+    color: var(--tb-text-high);
+}
+
+.timebox-seg-btn.is-active {
+    background: var(--tb-primary-subtle);
+    color: var(--tb-primary);
+    font-weight: 600;
+}
+
+/* Group Headers in Table */
+.timebox-sheet-group-header-row {
+    background: var(--tb-canvas-sunken) !important;
+    border-top: 1px solid var(--tb-border-strong);
+    border-bottom: 1px solid var(--tb-border-soft);
+}
+
+.timebox-sheet-group-header-cell {
+    padding: 6px 10px !important;
+}
+
+.timebox-sheet-group-header-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.timebox-sheet-group-title {
+    font-family: var(--tb-font-sans);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--tb-text-high);
+}
+
+.timebox-sheet-group-sub {
+    font-family: var(--tb-font-mono);
+    font-size: 11px;
+    color: var(--tb-text-muted);
+}
+
+.timebox-sheet-group-count {
+    font-family: var(--tb-font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--tb-text-muted);
+    background: var(--tb-surface-pure);
+    padding: 1px 6px;
+    border-radius: var(--tb-radius-xs);
+    border: 1px solid var(--tb-border-soft);
+    margin-left: 4px;
+}
+
+.timebox-sheet-group-overallocation {
+    font-family: var(--tb-font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--tb-danger-text);
+    background: var(--tb-danger-bg);
+    border: 1px solid var(--tb-danger-border);
+    padding: 1px 6px;
+    border-radius: var(--tb-radius-pill);
+    letter-spacing: 0.02em;
+}
+
+/* WBS Context Retention Row */
+.timebox-task-sheet-row.is-ancestor-context {
+    opacity: 0.65;
+    font-style: italic;
+    background: var(--tb-canvas-sunken);
+}
+
+.timebox-task-sheet-row.is-ancestor-context:hover {
+    opacity: 0.9;
+}
+
+/* Empty State */
+.timebox-discovery-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--tb-text-muted);
+}
+
+.timebox-discovery-empty-icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+    opacity: 0.6;
+}
+
+.timebox-discovery-empty-state h4 {
+    margin: 0 0 6px 0;
+    color: var(--tb-text-high);
+    font-size: 14px;
+    font-family: var(--tb-font-sans);
+}
+
+.timebox-discovery-empty-state p {
+    margin: 0 0 16px 0;
+    font-size: 12px;
+    font-family: var(--tb-font-sans);
+    max-width: 320px;
 }
 
 .timebox-sheet-actions {
@@ -1654,54 +2445,97 @@ body.is-resizing-gantt-splitter {
 
 .timebox-sheet-info-text {
     margin-left: auto;
+    font-family: var(--tb-font-mono);
     font-size: 11px;
-    color: var(--text-muted);
+    color: var(--tb-text-muted);
 }
 
 .timebox-task-sheet-wrapper {
     flex: 1;
     overflow: auto;
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 6px;
-    background: var(--background-primary);
+    border: 1px solid var(--tb-border-soft);
+    border-radius: var(--tb-radius-md);
+    background: var(--tb-surface-pure);
+    box-shadow: var(--tb-overlay-shadow);
 }
 
 .timebox-task-sheet-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 12px;
+    font-family: var(--tb-font-sans);
 }
 
 .timebox-task-sheet-table thead th {
     position: sticky;
     top: 0;
-    background: var(--background-secondary);
+    background: var(--tb-canvas-sunken);
     z-index: 10;
-    padding: 7px 8px;
+    padding: 0 8px;
+    height: var(--tb-row-height-header);
     text-align: left;
+    font-family: var(--tb-font-sans);
+    font-size: 11px;
     font-weight: 600;
-    color: var(--text-muted);
-    border-bottom: 1px solid var(--background-modifier-border);
-    border-right: 1px solid var(--background-modifier-border);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--tb-text-medium);
+    border-bottom: 1px solid var(--tb-border-strong);
+    border-right: 1px solid var(--tb-border-soft);
     user-select: none;
+    box-sizing: border-box;
 }
 
 .timebox-task-sheet-table tbody td {
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--background-modifier-border);
-    border-right: 1px solid var(--background-modifier-border);
+    padding: 0 8px;
+    height: var(--tb-row-height-dense);
+    border-bottom: 1px solid var(--tb-border-soft);
+    border-right: 1px solid var(--tb-border-subtle);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    color: var(--tb-text-high);
+    box-sizing: border-box;
+}
+
+/* Numeric & Monospace columns */
+.timebox-task-sheet-table td.col-wbs,
+.timebox-task-sheet-table td.col-start,
+.timebox-task-sheet-table td.col-due,
+.timebox-task-sheet-table td.col-dur,
+.timebox-task-sheet-table td.col-work,
+.timebox-task-sheet-table td.col-actual-start,
+.timebox-task-sheet-table td.col-actual-finish,
+.timebox-task-sheet-table td.col-actual-work,
+.timebox-task-sheet-table td.col-forecast-start,
+.timebox-task-sheet-table td.col-forecast-finish,
+.timebox-task-sheet-table td.col-baseline-start,
+.timebox-task-sheet-table td.col-baseline-finish,
+.timebox-task-sheet-table td.col-var-start,
+.timebox-task-sheet-table td.col-var-finish,
+.timebox-task-sheet-table td.col-var-dur,
+.timebox-task-sheet-table td.col-var-work,
+.timebox-task-sheet-table td.col-var-cost,
+.timebox-task-sheet-table td.col-pct,
+.timebox-task-sheet-table td.col-float,
+.timebox-task-sheet-table td.col-free-float {
+    font-family: var(--tb-font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Calculated Read-Only Cells in Table (Distinguishable, but not disabled) */
+.timebox-task-sheet-table td.timebox-readonly-cell {
+    background-color: var(--tb-surface-read-only);
+    color: var(--tb-text-medium);
 }
 
 .timebox-task-sheet-row:hover {
-    background: var(--background-modifier-hover);
+    background-color: var(--tb-surface-hover);
 }
 
 .timebox-task-sheet-row.is-parent-row {
     font-weight: 600;
-    background: var(--background-secondary-alt);
+    background-color: var(--tb-canvas-sunken);
 }
 
 .timebox-task-sheet-row.is-completed {
@@ -1710,44 +2544,78 @@ body.is-resizing-gantt-splitter {
 }
 
 .timebox-task-sheet-row.is-critical-row td.col-wbs {
-    border-left: 3px solid var(--text-error, #ef4444);
+    border-left: 3px solid var(--tb-critical);
     font-weight: 700;
+    color: var(--tb-critical);
+}
+
+.timebox-sheet-task-title {
+    font-weight: 500;
+    color: var(--tb-text-high);
+}
+
+.timebox-sheet-milestone-badge {
+    margin-left: 6px;
+    font-family: var(--tb-font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--tb-info-text);
+    background: var(--tb-info-bg);
+    border: 1px solid var(--tb-info-border);
+    border-radius: var(--tb-radius-pill);
+    padding: 1px 6px;
+}
+
+.timebox-sheet-resource-badge {
+    font-family: var(--tb-font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--tb-resource-text);
+    background: var(--tb-resource-bg);
+    border: 1px solid var(--tb-resource-border);
+    border-radius: var(--tb-radius-pill);
+    padding: 1px 8px;
+    display: inline-flex;
+    align-items: center;
 }
 
 .timebox-float-badge.is-zero {
-    background: rgba(239, 68, 68, 0.15);
-    color: var(--text-error, #f87171);
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-weight: 700;
+    background: var(--tb-critical-bg);
+    color: var(--tb-critical-text);
+    border: 1px solid var(--tb-critical-border);
+    padding: 1px 5px;
+    border-radius: var(--tb-radius-xs);
+    font-weight: 600;
 }
 
 .timebox-critical-badge {
-    background: var(--text-error, #ef4444);
-    color: #ffffff;
-    padding: 2px 6px;
-    border-radius: 4px;
+    background: var(--tb-critical-bg);
+    color: var(--tb-critical-text);
+    border: 1px solid var(--tb-critical-border);
+    padding: 1px 6px;
+    border-radius: var(--tb-radius-pill);
     font-size: 10px;
-    font-weight: 700;
+    font-weight: 600;
+    font-family: var(--tb-font-mono);
 }
 
 /* Variance and Forecast Badges */
 .timebox-variance-late {
-    color: var(--text-error, #ef4444);
+    color: var(--tb-danger);
     font-weight: 600;
 }
 
 .timebox-variance-early {
-    color: var(--text-success, #10b981);
+    color: var(--tb-success);
     font-weight: 600;
 }
 
 .timebox-variance-zero {
-    color: var(--text-muted);
+    color: var(--tb-text-muted);
 }
 
 .timebox-forecast-slip {
-    color: var(--text-error, #f87171);
+    color: var(--tb-critical);
     font-weight: 600;
 }
 
@@ -1755,41 +2623,45 @@ body.is-resizing-gantt-splitter {
 .timebox-column-modal {
     max-width: 720px;
     width: 90vw;
+    color: var(--tb-text-high);
 }
 
 .timebox-column-presets-container {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    background: var(--background-secondary);
-    border-radius: 6px;
-    margin-bottom: 12px;
-    border: 1px solid var(--background-modifier-border);
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--tb-canvas-sunken);
+    border-radius: var(--tb-radius-md);
+    margin-bottom: 14px;
+    border: 1px solid var(--tb-border-soft);
 }
 
 .timebox-column-preset-label {
     font-size: 11px;
     font-weight: 600;
-    color: var(--text-muted);
+    color: var(--tb-text-medium);
     text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .timebox-column-preset-btn {
     font-size: 11px;
-    padding: 3px 8px;
-    border-radius: 12px;
-    background: var(--background-primary);
-    border: 1px solid var(--background-modifier-border);
+    padding: 4px 10px;
+    border-radius: var(--tb-radius-full);
+    background: var(--tb-surface-pure);
+    border: 1px solid var(--tb-border-soft);
+    color: var(--tb-text-high);
     cursor: pointer;
     transition: all 0.15s ease;
 }
 
 .timebox-column-preset-btn:hover {
-    background: var(--interactive-accent);
-    color: var(--text-on-accent);
-    border-color: var(--interactive-accent);
+    background: var(--tb-primary);
+    color: var(--tb-primary-fg);
+    border-color: var(--tb-primary);
+    box-shadow: var(--tb-shadow-sm);
 }
 
 .timebox-column-groups-container {
@@ -1802,18 +2674,19 @@ body.is-resizing-gantt-splitter {
 }
 
 .timebox-column-group {
-    background: var(--background-secondary);
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 6px;
-    padding: 10px 12px;
+    background: var(--tb-canvas-sunken);
+    border: 1px solid var(--tb-border-soft);
+    border-radius: var(--tb-radius-md);
+    padding: 12px 14px;
 }
 
 .timebox-column-group-title {
-    margin: 0 0 8px 0;
+    margin: 0 0 10px 0;
     font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    color: var(--tb-text-medium);
+    font-weight: 600;
 }
 
 .timebox-column-grid {
@@ -1826,10 +2699,15 @@ body.is-resizing-gantt-splitter {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    background: var(--background-primary);
-    padding: 6px 8px;
-    border-radius: 4px;
-    border: 1px solid var(--background-modifier-border);
+    background: var(--tb-surface-pure);
+    padding: 8px 10px;
+    border-radius: var(--tb-radius-sm);
+    border: 1px solid var(--tb-border-soft);
+    transition: border-color 0.15s ease;
+}
+
+.timebox-column-item:hover {
+    border-color: var(--tb-border-strong);
 }
 
 .timebox-column-label {
@@ -1842,34 +2720,35 @@ body.is-resizing-gantt-splitter {
 
 .timebox-column-name {
     font-weight: 600;
-    color: var(--text-normal);
+    color: var(--tb-text-high);
 }
 
 .timebox-column-desc {
-    font-size: 10px;
-    color: var(--text-muted);
-    margin-left: 20px;
-    line-height: 1.2;
+    font-size: 11px;
+    color: var(--tb-text-medium);
+    margin-left: 22px;
+    line-height: 1.3;
 }
 
 .timebox-column-modal-footer {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
-    margin-top: 14px;
+    margin-top: 16px;
 }
 
 .timebox-sheet-resource-badge {
-    background: var(--background-secondary-alt);
-    border: 1px solid var(--background-modifier-border);
-    padding: 1px 6px;
-    border-radius: 10px;
+    background: var(--tb-resource-bg);
+    border: 1px solid var(--tb-resource-border);
+    padding: 1px 7px;
+    border-radius: var(--tb-radius-full);
     font-size: 10px;
-    color: var(--text-accent);
+    font-family: var(--tb-font-mono);
+    color: var(--tb-resource-text);
 }
 
 .timebox-sheet-milestone-badge {
-    color: var(--text-accent);
+    color: var(--tb-primary);
     font-size: 10px;
     font-weight: 600;
     margin-left: 6px;
@@ -1883,41 +2762,65 @@ body.is-resizing-gantt-splitter {
 .timebox-resource-usage-pane {
     flex: 1;
     overflow-y: auto;
-    padding: 16px;
+    padding: 18px 22px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
+    background: var(--tb-canvas-base);
+    color: var(--tb-text-high);
 }
 
-.timebox-resource-sheet-header {
+.timebox-resource-header-banner {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 4px;
+    padding: 12px 16px;
+    background: var(--tb-canvas-sunken);
+    border: 1px solid var(--tb-border-soft);
+    border-radius: var(--tb-radius-md);
+    gap: 12px;
 }
 
-.timebox-btn-primary {
-    background: var(--interactive-accent);
-    color: var(--text-on-accent, #ffffff);
-    border: none;
-    border-radius: 4px;
-    padding: 6px 14px;
+.timebox-resource-header-title h4 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--tb-text-high);
+}
+
+.timebox-resource-header-sub {
+    font-size: 12px;
+    color: var(--tb-text-medium);
+}
+
+.timebox-add-res-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 14px;
+    background: var(--tb-primary);
+    color: var(--tb-primary-fg);
+    border: 1px solid transparent;
+    border-radius: var(--tb-radius-sm);
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
-    transition: opacity 0.15s ease, transform 0.1s ease;
+    box-shadow: var(--tb-shadow-sm);
+    transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.timebox-btn-primary:hover {
-    opacity: 0.9;
+.timebox-add-res-btn:hover {
+    background: var(--tb-primary-hover);
+    box-shadow: var(--tb-shadow-md);
     transform: translateY(-1px);
 }
 
 .timebox-row-action-btn {
-    background: var(--background-modifier-border);
-    color: var(--text-muted);
-    border: none;
-    border-radius: 3px;
+    background: var(--tb-surface-pure);
+    color: var(--tb-text-medium);
+    border: 1px solid var(--tb-border-soft);
+    border-radius: var(--tb-radius-sm);
     padding: 3px 8px;
     font-size: 11px;
     font-weight: 500;
@@ -1928,25 +2831,28 @@ body.is-resizing-gantt-splitter {
 
 .timebox-row-action-btn:hover {
     background: var(--background-modifier-hover);
-    color: var(--text-normal);
+    color: var(--tb-text-high);
+    border-color: var(--tb-border-strong);
 }
 
 .timebox-row-action-btn.is-assign {
-    background: rgba(59, 130, 246, 0.15);
-    color: var(--text-accent, #38bdf8);
+    background: var(--tb-info-bg);
+    color: var(--tb-info-text);
+    border-color: var(--tb-info-border);
 }
 
 .timebox-row-action-btn.is-assign:hover {
-    background: rgba(59, 130, 246, 0.3);
+    opacity: 0.9;
 }
 
 .timebox-row-action-btn.is-danger {
-    background: rgba(239, 68, 68, 0.12);
-    color: var(--text-error, #f87171);
+    background: var(--tb-danger-bg);
+    color: var(--tb-danger-text);
+    border-color: var(--tb-danger-border);
 }
 
 .timebox-row-action-btn.is-danger:hover {
-    background: rgba(239, 68, 68, 0.25);
+    opacity: 0.9;
 }
 
 .timebox-resource-summary-card {
@@ -1954,46 +2860,107 @@ body.is-resizing-gantt-splitter {
 }
 
 .timebox-resource-alert-box {
-    background: rgba(239, 68, 68, 0.15);
-    border: 1px solid var(--text-error, #ef4444);
-    color: var(--text-error, #f87171);
+    background: var(--tb-danger-bg);
+    border: 1px solid var(--tb-danger-border);
+    color: var(--tb-danger-text);
     display: flex;
     align-items: center;
     gap: 8px;
     font-weight: 500;
+    font-size: 12px;
     padding: 10px 14px;
-    border-radius: 6px;
+    border-radius: var(--tb-radius-md);
 }
 
 .timebox-resource-pill {
     font-weight: 600;
-    color: var(--text-accent);
+    color: var(--tb-resource-text);
+    background: var(--tb-resource-bg);
+    border: 1px solid var(--tb-resource-border);
+    padding: 2px 8px;
+    border-radius: var(--tb-radius-full);
+    font-family: var(--tb-font-mono);
+    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
 }
 
 .timebox-status-badge {
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 10px;
+    padding: 3px 9px;
+    border-radius: var(--tb-radius-full);
+    font-size: 11px;
     font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .timebox-status-badge.is-success {
-    background: rgba(16, 185, 129, 0.15);
-    color: var(--text-success, #34d399);
+    background: var(--tb-success-bg);
+    color: var(--tb-success-text);
+    border: 1px solid var(--tb-success-border);
 }
 
 .timebox-status-badge.is-danger {
-    background: rgba(239, 68, 68, 0.15);
-    color: var(--text-error, #f87171);
+    background: var(--tb-danger-bg);
+    color: var(--tb-danger-text);
+    border: 1px solid var(--tb-danger-border);
 }
 
 /* Resource Usage Matrix Navigation and Table */
 .timebox-usage-nav-bar {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 12px;
-    padding: 6px 0;
-    border-bottom: 1px solid var(--background-modifier-border);
+    padding: 8px 12px;
+    background: var(--tb-canvas-sunken);
+    border: 1px solid var(--tb-border-soft);
+    border-radius: var(--tb-radius-md);
+}
+
+.timebox-usage-nav-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.timebox-nav-btn {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 11px;
+    font-weight: 500;
+    border: 1px solid var(--tb-border-soft);
+    background: var(--tb-surface-pure);
+    color: var(--tb-text-high);
+    border-radius: var(--tb-radius-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.timebox-nav-btn:hover {
+    background: var(--background-modifier-hover);
+    border-color: var(--tb-border-strong);
+}
+
+.timebox-usage-range-label {
+    font-family: var(--tb-font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--tb-text-high);
+    margin-left: 6px;
+}
+
+.timebox-usage-legend {
+    font-size: 11px;
+    color: var(--tb-text-medium);
+}
+
+.timebox-usage-table-wrapper {
+    overflow-x: auto;
+    border: 1px solid var(--tb-border-soft);
+    border-radius: var(--tb-radius-md);
+    background: var(--tb-surface-pure);
 }
 
 .timebox-usage-table {
@@ -2001,46 +2968,111 @@ body.is-resizing-gantt-splitter {
     border-collapse: collapse;
 }
 
-.timebox-usage-res-row {
+.timebox-usage-th {
+    background: var(--tb-canvas-sunken);
+    color: var(--tb-text-medium);
+    font-size: 11px;
+    text-transform: uppercase;
     font-weight: 600;
-    background: var(--background-secondary-alt);
+    letter-spacing: 0.05em;
+    border: 1px solid var(--tb-border-soft);
+    padding: 8px 6px;
+    text-align: center;
+}
+
+.timebox-usage-th.is-non-working-day {
+    background: var(--tb-surface-read-only);
+    color: var(--tb-text-low);
+}
+
+.timebox-usage-resource-row {
+    font-weight: 600;
+    background: var(--tb-surface-pure);
     cursor: pointer;
+    border-bottom: 1px solid var(--tb-border-soft);
     transition: background 0.15s ease;
 }
 
-.timebox-usage-res-row:hover {
+.timebox-usage-resource-row:hover {
     background: var(--background-modifier-hover);
 }
 
-.timebox-usage-task-subrow {
-    background: var(--background-primary);
+.timebox-usage-resource-row.has-conflict-row {
+    background: var(--tb-danger-bg);
+}
+
+.col-usage-name {
+    padding: 8px 12px;
+    border-right: 1px solid var(--tb-border-soft);
+    white-space: nowrap;
+}
+
+.timebox-usage-row-chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 6px;
+    color: var(--tb-text-medium);
+}
+
+.timebox-usage-row-meta {
     font-size: 11px;
-    color: var(--text-muted);
+    font-weight: normal;
+    color: var(--tb-text-medium);
+    font-family: var(--tb-font-mono);
+}
+
+.timebox-usage-task-subrow {
+    background: var(--tb-surface-read-only);
+    font-size: 11px;
+    color: var(--tb-text-medium);
+    border-bottom: 1px solid var(--tb-border-soft);
+}
+
+.timebox-task-wbs-code {
+    font-family: var(--tb-font-mono);
+    color: var(--tb-text-medium);
+    margin-right: 4px;
 }
 
 .timebox-usage-cell {
     text-align: center;
-    min-width: 52px;
+    min-width: 54px;
     padding: 6px 4px;
-    border: 1px solid var(--background-modifier-border);
+    border: 1px solid var(--tb-border-soft);
+    font-family: var(--tb-font-mono);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
     transition: background 0.15s ease;
 }
 
 .timebox-usage-cell.is-non-working-cell {
-    background: rgba(100, 116, 139, 0.08);
-    color: var(--text-faint);
+    background: var(--tb-surface-read-only);
+    color: var(--tb-text-low);
 }
 
 .timebox-usage-cell.is-allocated-cell {
     font-weight: 600;
-    color: var(--text-accent);
-    background: rgba(59, 130, 246, 0.1);
+    color: var(--tb-info-text);
+    background: var(--tb-info-bg);
 }
 
 .timebox-usage-cell.is-overallocated-cell {
     font-weight: 700;
-    color: var(--text-error, #ef4444);
-    background: rgba(239, 68, 68, 0.22);
+    color: var(--tb-danger-text);
+    background: var(--tb-danger-bg);
+    border-color: var(--tb-danger-border);
+}
+
+.timebox-usage-hours {
+    font-weight: 600;
+}
+
+.timebox-overalloc-badge {
+    display: block;
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--tb-danger-text);
 }
 
 .timebox-resource-modal {
@@ -2048,17 +3080,18 @@ body.is-resizing-gantt-splitter {
 }
 
 .timebox-resource-usage-card {
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 8px;
+    border: 1px solid var(--tb-border-soft);
+    border-radius: var(--tb-radius-md);
     padding: 14px;
-    background: var(--background-primary-alt);
+    background: var(--tb-surface-pure);
     display: flex;
     flex-direction: column;
     gap: 10px;
+    box-shadow: var(--tb-shadow-sm);
 }
 
 .timebox-resource-usage-card.has-overallocation {
-    border-color: var(--text-error, #ef4444);
+    border-color: var(--tb-danger-border);
 }
 
 .timebox-usage-card-header {
@@ -2074,14 +3107,19 @@ body.is-resizing-gantt-splitter {
 }
 
 .timebox-resource-tag-large {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
-    color: var(--text-accent);
+    color: var(--tb-resource-text);
+    background: var(--tb-resource-bg);
+    border: 1px solid var(--tb-resource-border);
+    padding: 3px 10px;
+    border-radius: var(--tb-radius-full);
+    font-family: var(--tb-font-mono);
 }
 
 .timebox-usage-meta {
     font-size: 11px;
-    color: var(--text-muted);
+    color: var(--tb-text-medium);
 }
 
 .timebox-usage-tasks {
@@ -2100,7 +3138,7 @@ body.is-resizing-gantt-splitter {
 .timebox-usage-days-title {
     font-size: 11px;
     font-weight: 600;
-    color: var(--text-muted);
+    color: var(--tb-text-medium);
     margin-bottom: 6px;
 }
 
@@ -2111,24 +3149,25 @@ body.is-resizing-gantt-splitter {
 }
 
 .timebox-usage-day-cell {
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 4px;
+    border: 1px solid var(--tb-border-soft);
+    border-radius: var(--tb-radius-sm);
     padding: 4px 6px;
     text-align: center;
-    min-width: 48px;
-    background: var(--background-secondary);
+    min-width: 50px;
+    background: var(--tb-canvas-sunken);
+    font-family: var(--tb-font-mono);
 }
 
 .timebox-usage-day-cell.is-overallocated {
-    background: rgba(239, 68, 68, 0.25);
-    border-color: var(--text-error, #ef4444);
-    color: var(--text-error, #f87171);
+    background: var(--tb-danger-bg);
+    border-color: var(--tb-danger-border);
+    color: var(--tb-danger-text);
     font-weight: 700;
 }
 
 .timebox-day-date {
     font-size: 10px;
-    color: var(--text-muted);
+    color: var(--tb-text-medium);
 }
 
 .timebox-day-hours {
@@ -2143,74 +3182,88 @@ body.is-resizing-gantt-splitter {
 .timebox-project-summary-pane {
     flex: 1;
     overflow-y: auto;
-    padding: 20px 24px;
+    padding: 24px 28px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 20px;
+    background: var(--tb-canvas-base);
+    color: var(--tb-text-high);
 }
 
 .timebox-summary-header h2 {
     margin: 0;
-    font-size: 1.5em;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--tb-text-high);
+    letter-spacing: -0.02em;
 }
 
 .timebox-summary-sub {
     margin: 4px 0 0 0;
-    font-size: 11px;
-    color: var(--text-muted);
+    font-size: 12px;
+    color: var(--tb-text-medium);
+    font-family: var(--tb-font-mono);
 }
 
 .timebox-summary-progress-section {
-    background: var(--background-secondary);
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 8px;
-    padding: 14px 16px;
+    background: var(--tb-surface-pure);
+    border: 1px solid var(--tb-border-soft);
+    border-radius: var(--tb-radius-lg);
+    padding: 16px 20px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
+    box-shadow: var(--tb-shadow-sm);
 }
 
 .timebox-progress-header {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     font-weight: 600;
-    font-size: 12px;
+    font-size: 13px;
+    color: var(--tb-text-high);
 }
 
 .timebox-progress-pct-label {
-    color: var(--interactive-accent);
+    color: var(--tb-primary);
+    font-family: var(--tb-font-mono);
+    font-size: 14px;
+    font-weight: 700;
 }
 
 .timebox-progress-bar-outer {
-    height: 10px;
-    border-radius: 5px;
-    background: var(--background-modifier-border);
+    height: 8px;
+    border-radius: var(--tb-radius-full);
+    background: var(--tb-canvas-sunken);
+    border: 1px solid var(--tb-border-soft);
     overflow: hidden;
 }
 
 .timebox-progress-bar-inner {
     height: 100%;
-    border-radius: 5px;
-    background: var(--interactive-accent);
-    transition: width 0.3s ease;
+    border-radius: var(--tb-radius-full);
+    background: var(--tb-primary);
+    transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .timebox-summary-kpi-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 12px;
+    gap: 14px;
 }
 
 .timebox-kpi-card {
-    background: var(--background-secondary);
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 8px;
-    padding: 14px;
+    background: var(--tb-surface-pure);
+    border: 1px solid var(--tb-border-soft);
+    border-radius: var(--tb-radius-md);
+    padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
     position: relative;
-    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: var(--tb-shadow-sm);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .timebox-kpi-card.is-clickable {
@@ -2219,58 +3272,63 @@ body.is-resizing-gantt-splitter {
 
 .timebox-kpi-card.is-clickable:hover {
     transform: translateY(-2px);
-    border-color: var(--interactive-accent);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border-color: var(--tb-primary);
+    box-shadow: var(--tb-shadow-md);
 }
 
 .timebox-kpi-icon {
     position: absolute;
-    top: 14px;
-    right: 14px;
-    color: var(--text-muted);
-    opacity: 0.6;
+    top: 16px;
+    right: 16px;
+    color: var(--tb-text-medium);
+    opacity: 0.5;
 }
 
 .timebox-kpi-title {
     font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    color: var(--tb-text-medium);
     font-weight: 600;
 }
 
 .timebox-kpi-value {
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 700;
-    color: var(--text-normal);
-    margin: 4px 0;
+    color: var(--tb-text-high);
+    font-family: var(--tb-font-mono);
+    font-variant-numeric: tabular-nums;
+    margin: 4px 0 2px 0;
 }
 
 .timebox-kpi-sub {
     font-size: 11px;
-    color: var(--text-muted);
+    color: var(--tb-text-medium);
 }
 
 .timebox-summary-section {
-    background: var(--background-secondary);
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 8px;
-    padding: 14px 16px;
+    background: var(--tb-surface-pure);
+    border: 1px solid var(--tb-border-soft);
+    border-radius: var(--tb-radius-lg);
+    padding: 18px 20px;
+    box-shadow: var(--tb-shadow-sm);
 }
 
 .timebox-summary-section h3 {
-    margin: 0 0 10px 0;
-    font-size: 1.05em;
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--tb-text-high);
 }
 
 .timebox-critical-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--background-modifier-border);
+    gap: 10px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--tb-border-soft);
     font-size: 12px;
-    border-radius: 4px;
+    border-radius: var(--tb-radius-sm);
     transition: background 0.15s ease;
 }
 
@@ -2284,33 +3342,37 @@ body.is-resizing-gantt-splitter {
 
 .timebox-critical-step {
     font-weight: 700;
-    color: var(--text-error, #ef4444);
+    color: var(--tb-critical-text);
+    font-family: var(--tb-font-mono);
     min-width: 24px;
 }
 
 .timebox-critical-wbs {
-    color: var(--text-muted);
+    color: var(--tb-text-medium);
+    font-family: var(--tb-font-mono);
     font-size: 11px;
 }
 
 .timebox-critical-name {
-    font-weight: 600;
+    font-weight: 500;
     flex: 1;
+    color: var(--tb-text-high);
 }
 
 .timebox-critical-dates {
     font-size: 11px;
-    color: var(--text-muted);
+    color: var(--tb-text-medium);
+    font-family: var(--tb-font-mono);
 }
 
 .timebox-milestone-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--background-modifier-border);
+    gap: 10px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--tb-border-soft);
     font-size: 12px;
-    border-radius: 4px;
+    border-radius: var(--tb-radius-sm);
     transition: background 0.15s ease;
 }
 
@@ -2325,11 +3387,13 @@ body.is-resizing-gantt-splitter {
 .timebox-milestone-name {
     flex: 1;
     font-weight: 500;
+    color: var(--tb-text-high);
 }
 
 .timebox-milestone-date {
     font-size: 11px;
-    color: var(--text-muted);
+    color: var(--tb-text-medium);
+    font-family: var(--tb-font-mono);
 }
 
 /* ==========================================================================
@@ -2337,26 +3401,28 @@ body.is-resizing-gantt-splitter {
    ========================================================================== */
 
 .timebox-gantt-task-bar.is-critical {
-    border: 2px solid var(--text-error, #ef4444) !important;
-    box-shadow: 0 0 6px rgba(239, 68, 68, 0.45);
+    border: 1.5px solid var(--tb-critical) !important;
+    background: var(--tb-critical-bg) !important;
+    color: var(--tb-critical-text) !important;
+    box-shadow: 0 0 6px rgba(245, 158, 11, 0.25);
 }
 
 .timebox-gantt-summary-bar.is-critical {
-    fill: var(--text-error, #ef4444) !important;
+    fill: var(--tb-critical) !important;
 }
 
 .timebox-gantt-baseline-bar {
     position: absolute;
     z-index: 1;
     height: 4px;
-    background: repeating-linear-gradient(45deg, #64748b, #64748b 3px, #475569 3px, #475569 6px);
-    border-radius: 2px;
+    background: repeating-linear-gradient(45deg, var(--tb-baseline, #64748b), var(--tb-baseline, #64748b) 3px, rgba(100, 116, 139, 0.3) 3px, rgba(100, 116, 139, 0.3) 6px);
+    border-radius: var(--tb-radius-xs, 2px);
     opacity: 0.85;
     pointer-events: none;
 }
 
 .timebox-gantt-baseline-bar.is-summary-baseline {
-    background: #94a3b8;
+    background: var(--tb-baseline, #94a3b8);
     height: 3px;
 }
 
@@ -2413,9 +3479,11 @@ body.is-resizing-gantt-splitter {
    ========================================================================== */
 
 .timebox-settings-modal,
-.timebox-calendar-modal {
-    padding: 12px 16px;
+.timebox-calendar-modal,
+.timebox-saved-views-modal {
+    padding: 18px 22px;
     max-width: 640px;
+    color: var(--tb-text-high);
 }
 
 .timebox-calendar-select-wrapper {
@@ -2434,11 +3502,11 @@ body.is-resizing-gantt-splitter {
     justify-content: space-between;
     align-items: center;
     gap: 12px;
-    padding: 8px 12px;
+    padding: 10px 14px;
     margin-bottom: 16px;
-    background: var(--background-secondary);
-    border-radius: 6px;
-    border: 1px solid var(--background-modifier-border);
+    background: var(--tb-canvas-sunken);
+    border-radius: var(--tb-radius-md);
+    border: 1px solid var(--tb-border-soft);
 }
 
 .timebox-cal-select-group {
@@ -2456,14 +3524,14 @@ body.is-resizing-gantt-splitter {
 .timebox-cal-section {
     margin-top: 18px;
     padding-top: 14px;
-    border-top: 1px solid var(--background-modifier-border);
+    border-top: 1px solid var(--tb-border-soft);
 }
 
 .timebox-cal-section h4 {
     margin: 0 0 10px 0;
     font-size: 13px;
     font-weight: 600;
-    color: var(--text-normal);
+    color: var(--tb-text-high);
 }
 
 .timebox-day-pills-container {
@@ -2473,27 +3541,27 @@ body.is-resizing-gantt-splitter {
 }
 
 .timebox-day-pill {
-    padding: 6px 14px;
-    font-size: 12px;
+    padding: 5px 12px;
+    font-size: 11px;
     font-weight: 600;
-    border-radius: 20px;
-    border: 1px solid var(--background-modifier-border);
-    background: var(--background-secondary);
-    color: var(--text-muted);
+    border-radius: var(--tb-radius-full);
+    border: 1px solid var(--tb-border-soft);
+    background: var(--tb-canvas-sunken);
+    color: var(--tb-text-medium);
     cursor: pointer;
     transition: all 0.15s ease;
 }
 
 .timebox-day-pill:hover {
-    border-color: var(--interactive-accent);
-    color: var(--text-normal);
+    border-color: var(--tb-border-strong);
+    color: var(--tb-text-high);
 }
 
 .timebox-day-pill.is-active {
-    background: var(--interactive-accent);
-    color: var(--text-on-accent, #ffffff);
-    border-color: var(--interactive-accent);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+    background: var(--tb-primary);
+    color: var(--tb-primary-fg);
+    border-color: var(--tb-primary);
+    box-shadow: var(--tb-shadow-sm);
 }
 
 .timebox-cal-inline-add,
@@ -2520,30 +3588,30 @@ body.is-resizing-gantt-splitter {
     align-items: center;
     gap: 6px;
     padding: 4px 10px;
-    background: var(--background-secondary);
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 4px;
+    background: var(--tb-canvas-sunken);
+    border: 1px solid var(--tb-border-soft);
+    border-radius: var(--tb-radius-sm);
     font-size: 11px;
-    font-family: var(--font-monospace);
-    color: var(--text-normal);
+    font-family: var(--tb-font-mono);
+    color: var(--tb-text-high);
 }
 
 .timebox-tag-delete {
     cursor: pointer;
     font-weight: bold;
-    color: var(--text-muted);
+    color: var(--tb-text-medium);
     padding: 0 2px;
     border-radius: 2px;
 }
 
 .timebox-tag-delete:hover {
-    color: var(--text-error, #f87171);
+    color: var(--tb-danger-text);
     background: var(--background-modifier-hover);
 }
 
 .timebox-cal-empty {
     font-size: 12px;
-    color: var(--text-muted);
+    color: var(--tb-text-medium);
     font-style: italic;
     padding: 6px 0;
 }
@@ -2557,90 +3625,108 @@ body.is-resizing-gantt-splitter {
 
 .timebox-cal-exceptions-table th {
     text-align: left;
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--background-modifier-border);
-    color: var(--text-muted);
-    font-weight: 500;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--tb-border-soft);
+    color: var(--tb-text-medium);
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.05em;
 }
 
 .timebox-cal-exceptions-table td {
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--background-modifier-border-focus, rgba(255, 255, 255, 0.05));
-    color: var(--text-normal);
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--tb-border-soft);
+    color: var(--tb-text-high);
 }
 
 .timebox-status-badge.is-working {
-    background: rgba(34, 197, 94, 0.15);
-    color: #4ade80;
-    border: 1px solid rgba(34, 197, 94, 0.3);
-    padding: 2px 6px;
-    border-radius: 4px;
+    background: var(--tb-success-bg);
+    color: var(--tb-success-text);
+    border: 1px solid var(--tb-success-border);
+    padding: 2px 7px;
+    border-radius: var(--tb-radius-full);
     font-size: 10px;
     font-weight: 600;
 }
 
 .timebox-status-badge.is-non-working {
-    background: rgba(239, 68, 68, 0.15);
-    color: #f87171;
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    padding: 2px 6px;
-    border-radius: 4px;
+    background: var(--tb-danger-bg);
+    color: var(--tb-danger-text);
+    border: 1px solid var(--tb-danger-border);
+    padding: 2px 7px;
+    border-radius: var(--tb-radius-full);
     font-size: 10px;
     font-weight: 600;
 }
 
 .timebox-btn-secondary {
-    padding: 5px 12px;
-    border-radius: 4px;
-    border: 1px solid var(--background-modifier-border);
-    background: var(--background-secondary);
-    color: var(--text-normal);
+    padding: 6px 14px;
+    border-radius: var(--tb-radius-sm);
+    border: 1px solid var(--tb-border-soft);
+    background: var(--tb-surface-pure);
+    color: var(--tb-text-high);
     font-size: 12px;
+    font-weight: 500;
     cursor: pointer;
+    transition: all 0.15s ease;
 }
 
 .timebox-btn-secondary:hover {
     background: var(--background-modifier-hover);
+    border-color: var(--tb-border-strong);
 }
 
 .timebox-btn-primary {
-    padding: 5px 14px;
-    border-radius: 4px;
-    border: 1px solid var(--interactive-accent);
-    background: var(--interactive-accent);
-    color: var(--text-on-accent, #ffffff);
+    padding: 6px 16px;
+    border-radius: var(--tb-radius-sm);
+    border: 1px solid transparent;
+    background: var(--tb-primary);
+    color: var(--tb-primary-fg);
     font-size: 12px;
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
+    box-shadow: var(--tb-shadow-sm);
+    transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.timebox-btn-primary:hover {
+    background: var(--tb-primary-hover);
+    box-shadow: var(--tb-shadow-md);
+    transform: translateY(-1px);
 }
 
 .timebox-btn-danger {
-    padding: 5px 10px;
-    border-radius: 4px;
-    border: 1px solid rgba(239, 68, 68, 0.4);
-    background: rgba(239, 68, 68, 0.1);
-    color: #f87171;
+    padding: 6px 14px;
+    border-radius: var(--tb-radius-sm);
+    border: 1px solid var(--tb-danger-border);
+    background: var(--tb-danger-bg);
+    color: var(--tb-danger-text);
     font-size: 12px;
+    font-weight: 500;
     cursor: pointer;
+    transition: all 0.15s ease;
 }
 
 .timebox-btn-danger:hover:not(.is-disabled) {
-    background: rgba(239, 68, 68, 0.25);
+    opacity: 0.9;
 }
 
 .timebox-icon-btn-sm {
-    padding: 2px 6px;
-    border-radius: 3px;
-    border: 1px solid var(--background-modifier-border);
+    padding: 3px 7px;
+    border-radius: var(--tb-radius-xs);
+    border: 1px solid var(--tb-border-soft);
     background: transparent;
-    color: var(--text-muted);
+    color: var(--tb-text-medium);
     cursor: pointer;
     font-size: 11px;
+    transition: all 0.15s ease;
 }
 
 .timebox-icon-btn-sm:hover {
-    color: var(--text-error, #f87171);
+    color: var(--tb-danger-text);
     background: var(--background-modifier-hover);
+    border-color: var(--tb-danger-border);
 }
 
 /* ==========================================================================
@@ -2648,25 +3734,26 @@ body.is-resizing-gantt-splitter {
    ========================================================================== */
 
 .timebox-baseline-modal {
-    padding: 12px 16px;
+    padding: 18px 22px;
     max-width: 720px;
+    color: var(--tb-text-high);
 }
 
 .timebox-baseline-active-banner {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 10px 14px;
+    padding: 12px 14px;
     margin-bottom: 16px;
-    background: var(--background-secondary);
-    border-radius: 6px;
-    border: 1px solid var(--background-modifier-border);
+    background: var(--tb-canvas-sunken);
+    border-radius: var(--tb-radius-md);
+    border: 1px solid var(--tb-border-soft);
 }
 
 .timebox-baseline-active-banner label {
     font-weight: 600;
     font-size: 13px;
-    color: var(--text-normal);
+    color: var(--tb-text-high);
 }
 
 .timebox-baseline-active-banner select {
@@ -2678,7 +3765,7 @@ body.is-resizing-gantt-splitter {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
 }
 
 .timebox-baseline-capture-bar select {
@@ -2690,13 +3777,13 @@ body.is-resizing-gantt-splitter {
 }
 
 .timebox-text-muted {
-    color: var(--text-muted);
+    color: var(--tb-text-medium);
     font-style: italic;
 }
 
 /* Phase 3: Status Date, Forecast Slippage & Execution Tracking */
 .timebox-gantt-status-line {
-    stroke: var(--color-orange, #f59e0b);
+    stroke: var(--tb-critical, #f59e0b);
     stroke-width: 2px;
     stroke-dasharray: 4 3;
     pointer-events: none;
@@ -2709,22 +3796,23 @@ body.is-resizing-gantt-splitter {
 }
 
 .timebox-gantt-status-badge-bg {
-    fill: var(--color-orange, #f59e0b);
-    opacity: 0.92;
+    fill: var(--tb-critical, #f59e0b);
+    opacity: 0.95;
+    rx: var(--tb-radius-xs, 2px);
 }
 
 .timebox-gantt-status-badge-text {
     fill: #ffffff;
     font-size: 10px;
     font-weight: 600;
-    font-family: var(--font-monospace, monospace);
+    font-family: var(--tb-font-mono, monospace);
     dominant-baseline: middle;
 }
 
 .timebox-gantt-today-btn.is-active-status {
-    background: rgba(245, 158, 11, 0.18);
-    border-color: var(--color-orange, #f59e0b);
-    color: var(--color-orange, #f59e0b);
+    background: var(--tb-critical-bg, rgba(245, 158, 11, 0.18));
+    border-color: var(--tb-critical-border, #f59e0b);
+    color: var(--tb-critical-text, #f59e0b);
     font-weight: 600;
 }
 
@@ -2742,13 +3830,13 @@ body.is-resizing-gantt-splitter {
     position: absolute;
     background: repeating-linear-gradient(
         45deg,
-        rgba(239, 68, 68, 0.35),
-        rgba(239, 68, 68, 0.35) 4px,
-        rgba(239, 68, 68, 0.15) 4px,
-        rgba(239, 68, 68, 0.15) 8px
+        rgba(239, 68, 68, 0.25),
+        rgba(239, 68, 68, 0.25) 4px,
+        rgba(239, 68, 68, 0.08) 4px,
+        rgba(239, 68, 68, 0.08) 8px
     );
-    border: 1px dashed var(--color-red, #ef4444);
-    border-radius: 3px;
+    border: 1px dashed var(--tb-danger, #ef4444);
+    border-radius: var(--tb-radius-xs, 2px);
     z-index: 12;
     pointer-events: auto;
     cursor: help;
@@ -2759,16 +3847,16 @@ body.is-resizing-gantt-splitter {
     flex-direction: column;
     gap: 6px;
     padding: 10px 14px;
-    background: var(--background-secondary);
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 6px;
+    background: var(--tb-canvas-sunken, var(--background-secondary));
+    border: 1px solid var(--tb-border-soft);
+    border-radius: var(--tb-radius-md, 6px);
     margin: 8px 0;
 }
 
 .timebox-readout-item {
     font-size: 11px;
-    color: var(--text-muted);
-    font-family: var(--font-monospace, monospace);
+    color: var(--tb-text-medium, var(--text-muted));
+    font-family: var(--tb-font-mono, monospace);
 }
 
 .timebox-status-presets {
@@ -2776,5 +3864,102 @@ body.is-resizing-gantt-splitter {
     gap: 8px;
     margin-top: 4px;
 }
+
+/* ==========================================================================
+   Timebox Daily View Project Grouping (v1.6 Phase 1)
+   ========================================================================== */
+
+.timebox-daily-grouped-ul {
+    list-style: none !important;
+    padding-left: 0 !important;
+    margin: 8px 0 !important;
+}
+
+.timebox-daily-grouped-ul > li::before,
+.timebox-daily-project-group::before {
+    display: none !important;
+    content: none !important;
+}
+
+.timebox-daily-project-group {
+    list-style: none !important;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    background: var(--background-secondary);
+    overflow: hidden;
+    margin: 6px 0 !important;
+    padding: 0 !important;
+    transition: border-color 0.15s ease;
+}
+
+.timebox-daily-project-group:hover {
+    border-color: var(--interactive-accent);
+}
+
+.timebox-daily-project-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    user-select: none;
+    background: var(--background-secondary);
+    transition: background 0.15s ease;
+}
+
+.timebox-daily-project-header:hover {
+    background: var(--background-modifier-hover);
+}
+
+.timebox-daily-project-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-normal);
+    flex: 1;
+}
+
+.timebox-daily-project-chevron {
+    font-size: 10px;
+    color: var(--text-muted);
+    width: 14px;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    transition: transform 0.15s ease;
+}
+
+.timebox-daily-project-count {
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--background-primary);
+    padding: 2px 7px;
+    border-radius: 10px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.timebox-daily-project-task-list {
+    margin: 0 !important;
+    padding: 8px 12px 8px 32px !important;
+    list-style: none !important;
+    background: var(--background-primary);
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.timebox-daily-project-task-list > li {
+    list-style: none !important;
+}
+
+.timebox-daily-project-task-list .list-bullet {
+    display: none !important;
+}
+
+.timebox-daily-project-group.is-collapsed .timebox-daily-project-task-list {
+    display: none !important;
+}
+
+.timebox-daily-project-group:not(.is-collapsed) .timebox-daily-project-task-list {
+    display: block !important;
+}
+
 
 

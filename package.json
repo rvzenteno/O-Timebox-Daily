@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-    "test": "esbuild test/schedulingEngine.test.ts --bundle --platform=node --format=esm --packages=external --outfile=test/dist.test.mjs && node --test test/dist.test.mjs",
+    "test": "esbuild test/schedulingEngine.test.ts --bundle --platform=node --format=esm --packages=external --outfile=test/dist.test.mjs && esbuild test/realWorldAcceptance.test.ts --bundle --platform=node --format=esm --packages=external --outfile=test/dist.rw.mjs && esbuild test/taskDiscovery.test.ts --bundle --platform=node --format=esm --packages=external --outfile=test/dist.discovery.mjs && node --test test/dist.test.mjs test/dist.rw.mjs test/dist.discovery.mjs",
     "version": "node version-bump.mjs && git add manifest.json versions.json"
   },
 

@@ -480,7 +480,7 @@ test('REAL-WORLD ACCEPTANCE TEST: Commercial Facility Buildout & Signal Infrastr
         task2.actualStart = '2026-09-16';
         task2.actualFinish = undefined;
         task2.percentComplete = 50;
-        task2.actualWorkHours = 24;
+        task2.actualWorkHours = 12; // 50% of 24h planned work (3d * 8h = 24h)
 
         // Task 3: Unstarted (0%)
         const task3 = baselined.tasks.find(t => t.id === task3Id)!;

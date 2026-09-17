@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile, setIcon, Menu, Notice, Modal, App, moment } from 'obsidian';
+import { ItemView, WorkspaceLeaf, TFile, setIcon, Menu, Notice, Modal, App, moment, Scope } from 'obsidian';
 import { ProjectManager, ProjectData, ProjectTask, WorkingCalendar } from './projectManager';
 import { ValidationIssue, ResourceDefinition, ResourceType, CalendarDefinition, TaskVariance } from './projectModel';
 import { ResourceEngine, ResourceUsageSummary } from './resourceEngine';
@@ -8,8 +8,21 @@ import { MarkdownAdapter } from './markdownAdapter';
 import { ProjectSettingsModal } from './projectSettingsModal';
 import { BaselineModal } from './baselineModal';
 import { StatusDateModal } from './statusDateModal';
-import { ALL_TASKSHEET_COLUMNS, DEFAULT_TASKSHEET_COLUMNS } from './taskSheetModel';
+import { ALL_TASKSHEET_COLUMNS, DEFAULT_TASKSHEET_COLUMNS, TaskSheetColumnDef } from './taskSheetModel';
 import { ColumnVisibilityModal } from './columnVisibilityModal';
+import { SavedViewModal } from './savedViewModal';
+import { 
+    FlattenedGanttRow,
+    TaskDiscoveryEngine,
+    TaskSheetFilterState,
+    TaskGroupingMode,
+    QuickFilterType,
+    QuickFilterId,
+    TaskStatusFilter,
+    SavedViewDefinition,
+    DEFAULT_SAVED_VIEWS,
+    GroupedTaskSection
+} from './taskDiscoveryEngine';
 import TimeBoxPlugin from './main';
 
 export const TIMEBOX_GANTT_VIEW_TYPE = 'timebox-gantt-view';
@@ -19,43 +32,6 @@ const getMoment = (inp?: unknown, fmt?: unknown, strict?: boolean): moment.Momen
 
 export type GanttZoomLevel = 'day' | 'week' | 'month';
 export type ProjectManagementViewType = 'gantt' | 'task-sheet' | 'resource-sheet' | 'resource-usage' | 'project-summary';
-
-interface FlattenedGanttRow {
-    task: ProjectTask;
-    isParent: boolean;
-    isSubtask: boolean;
-    hasDates: boolean;
-    startDate?: string;
-    dueDate?: string;
-    durationDays: number;
-    isMilestone: boolean;
-    visible: boolean;
-    parentIndex?: number;
-    wbsCode: string;
-    wbsIndex: number;
-    resource?: string;
-    predecessors: string[];
-    isBlocked: boolean;
-    isCritical: boolean;
-    totalFloat: number;
-    freeFloat: number;
-    workHours: number;
-    percentComplete: number;
-    constraintType?: string;
-    constraintDate?: string;
-    baselineStart?: string;
-    baselineFinish?: string;
-    plannedStart?: string;
-    plannedFinish?: string;
-    actualStart?: string;
-    actualFinish?: string;
-    actualWork?: number;
-    forecastStart?: string;
-    forecastFinish?: string;
-    description?: string;
-    workingIntervals: Array<{ start: string; end: string }>;
-    variance?: TaskVariance;
-}
 
 
 export class TaskInformationModal extends Modal {
@@ -73,9 +49,11 @@ export class TaskInformationModal extends Modal {
     private resInput: HTMLInputElement | null = null;
     private milestoneCheck: HTMLInputElement | null = null;
     private completedCheck: HTMLInputElement | null = null;
+    private plannedWorkInput: HTMLInputElement | null = null;
     private actualStartInput: HTMLInputElement | null = null;
     private actualFinishInput: HTMLInputElement | null = null;
     private actualWorkInput: HTMLInputElement | null = null;
+    private remainingWorkInput: HTMLInputElement | null = null;
     private progressInput: HTMLInputElement | null = null;
 
     constructor(
@@ -124,32 +102,6 @@ export class TaskInformationModal extends Modal {
         });
         this.descInput.value = this.task.description || '';
 
-        // Start Date
-        const startRow = form.createDiv({ cls: 'timebox-form-row' });
-        startRow.createEl('label', { text: 'Start Date (Working Day):' });
-        this.startInput = startRow.createEl('input', {
-            type: 'date',
-            value: this.task.startDate || ''
-        });
-
-        // Due Date
-        const dueRow = form.createDiv({ cls: 'timebox-form-row' });
-        dueRow.createEl('label', { text: 'Due Date:' });
-        this.dueInput = dueRow.createEl('input', {
-            type: 'date',
-            value: this.task.dueDate || ''
-        });
-
-        // Duration in Working Days
-        const durRow = form.createDiv({ cls: 'timebox-form-row' });
-        durRow.createEl('label', { text: 'Duration (Working Days):' });
-        this.durInput = durRow.createEl('input', {
-            type: 'number',
-            value: String(this.task.durationDays || 1)
-        });
-        this.durInput.min = '1';
-        this.durInput.max = '365';
-
         // Predecessors
         const predRow = form.createDiv({ cls: 'timebox-form-row' });
         predRow.createEl('label', { text: 'Predecessors (WBS #):' });
@@ -168,20 +120,53 @@ export class TaskInformationModal extends Modal {
             placeholder: 'e.g. @Roberto'
         });
 
-        // Flags row (Milestone & Completed)
+        // Section 1: PLANNED SCHEDULE
+        const planHeader = form.createDiv({ cls: 'timebox-form-section-title full-width' });
+        planHeader.createEl('h4', { text: 'Planned Schedule' });
+
+        // Start Date
+        const startRow = form.createDiv({ cls: 'timebox-form-row' });
+        startRow.createEl('label', { text: 'Planned Start Date:' });
+        this.startInput = startRow.createEl('input', {
+            type: 'date',
+            value: this.task.startDate || ''
+        });
+
+        // Due Date
+        const dueRow = form.createDiv({ cls: 'timebox-form-row' });
+        dueRow.createEl('label', { text: 'Planned Due / Finish Date:' });
+        this.dueInput = dueRow.createEl('input', {
+            type: 'date',
+            value: this.task.dueDate || ''
+        });
+
+        // Duration in Working Days
+        const durRow = form.createDiv({ cls: 'timebox-form-row' });
+        durRow.createEl('label', { text: 'Duration (Working Days):' });
+        this.durInput = durRow.createEl('input', {
+            type: 'number',
+            value: String(this.task.isMilestone ? 0 : (this.task.durationDays || 1))
+        });
+        this.durInput.min = '0';
+        this.durInput.max = '365';
+
+        // Planned Work (Read-only, derived from duration/milestone or explicit model work)
+        const plannedWorkRow = form.createDiv({ cls: 'timebox-form-row' });
+        plannedWorkRow.createEl('label', { text: 'Planned Work:' });
+        this.plannedWorkInput = plannedWorkRow.createEl('input', {
+            type: 'text',
+            cls: 'timebox-readonly-input'
+        });
+        this.plannedWorkInput.readOnly = true;
+
+        // Milestone Flag
         const flagsRow = form.createDiv({ cls: 'timebox-form-row flags-row full-width' });
-        
         const milestoneLabel = flagsRow.createEl('label', { cls: 'timebox-checkbox-label' });
         this.milestoneCheck = milestoneLabel.createEl('input', { type: 'checkbox' });
         this.milestoneCheck.checked = this.task.isMilestone;
-        milestoneLabel.createSpan({ text: ' Milestone (0 working days)' });
+        milestoneLabel.createSpan({ text: ' Milestone (0 working days / 0 planned work)' });
 
-        const completedLabel = flagsRow.createEl('label', { cls: 'timebox-checkbox-label' });
-        this.completedCheck = completedLabel.createEl('input', { type: 'checkbox' });
-        this.completedCheck.checked = this.task.completed;
-        completedLabel.createSpan({ text: ' Task Completed' });
-
-        // Execution & Actuals Section
+        // Section 2: EXECUTION TRACKING & ACTUALS
         const trackingHeader = form.createDiv({ cls: 'timebox-form-section-title full-width' });
         trackingHeader.createEl('h4', { text: 'Execution Tracking & Actuals' });
 
@@ -201,25 +186,40 @@ export class TaskInformationModal extends Modal {
             value: this.task.actualFinish || ''
         });
 
-        // Actual Work
+        // Actual Work (Editable, hours)
         const actWorkRow = form.createDiv({ cls: 'timebox-form-row' });
         actWorkRow.createEl('label', { text: 'Actual Work (Hours):' });
         this.actualWorkInput = actWorkRow.createEl('input', {
             type: 'number',
             value: this.task.actualWork !== undefined ? String(this.task.actualWork) : '',
-            placeholder: 'e.g. 16'
+            placeholder: 'e.g. 18'
         });
         this.actualWorkInput.min = '0';
 
-        // Progress %
-        const progressRow = form.createDiv({ cls: 'timebox-form-row' });
-        progressRow.createEl('label', { text: 'Progress (% Complete):' });
-        this.progressInput = progressRow.createEl('input', {
-            type: 'number',
-            value: String(this.task.percentComplete !== undefined ? this.task.percentComplete : (this.task.completed ? 100 : 0))
+        // Remaining Work (Read-only: max(0, Planned Work - Actual Work))
+        const remainingWorkRow = form.createDiv({ cls: 'timebox-form-row' });
+        remainingWorkRow.createEl('label', { text: 'Remaining Work:' });
+        this.remainingWorkInput = remainingWorkRow.createEl('input', {
+            type: 'text',
+            cls: 'timebox-readonly-input'
         });
-        this.progressInput.min = '0';
-        this.progressInput.max = '100';
+        this.remainingWorkInput.readOnly = true;
+
+        // Progress % Complete (Read-only derived: min(100, round(Actual Work / Planned Work * 100)))
+        const progressRow = form.createDiv({ cls: 'timebox-form-row' });
+        progressRow.createEl('label', { text: 'Progress (% Complete — Derived):' });
+        this.progressInput = progressRow.createEl('input', {
+            type: 'text',
+            cls: 'timebox-readonly-input'
+        });
+        this.progressInput.readOnly = true;
+
+        // Completed Checkbox
+        const completedFlagsRow = form.createDiv({ cls: 'timebox-form-row flags-row full-width' });
+        const completedLabel = completedFlagsRow.createEl('label', { cls: 'timebox-checkbox-label' });
+        this.completedCheck = completedLabel.createEl('input', { type: 'checkbox' });
+        this.completedCheck.checked = this.task.completed;
+        completedLabel.createSpan({ text: ' Task Completed (100%)' });
 
         // Read-only Scheduled Intent vs Forecast Summary
         const scheduleSummary = form.createDiv({ cls: 'timebox-task-info-readout full-width' });
@@ -242,6 +242,9 @@ export class TaskInformationModal extends Modal {
             text: `Active Baseline: ${baseSpan}`
         });
 
+        // Initialize Work and Progress display
+        this.recalculateWorkAndProgress();
+
         // Synchronize Working Calendar between Start, Dur, and Due fields
         this.startInput.addEventListener('change', () => {
             const startVal = this.startInput?.value;
@@ -255,6 +258,7 @@ export class TaskInformationModal extends Modal {
                     this.dueInput.value = WorkingCalendar.addWorkingDays(snapped, durVal);
                 }
             }
+            this.recalculateWorkAndProgress();
         });
 
         this.durInput.addEventListener('input', () => {
@@ -263,6 +267,7 @@ export class TaskInformationModal extends Modal {
             if (startVal && durVal > 0 && this.dueInput) {
                 this.dueInput.value = WorkingCalendar.addWorkingDays(startVal, durVal);
             }
+            this.recalculateWorkAndProgress();
         });
 
         this.dueInput.addEventListener('change', () => {
@@ -272,6 +277,30 @@ export class TaskInformationModal extends Modal {
                 const calculatedDur = WorkingCalendar.calculateWorkingDays(startVal, dueVal);
                 this.durInput.value = String(calculatedDur);
             }
+            this.recalculateWorkAndProgress();
+        });
+
+        // Dynamic recomputation listeners for Work & Progress
+        this.actualWorkInput.addEventListener('input', () => {
+            this.recalculateWorkAndProgress();
+        });
+
+        this.milestoneCheck.addEventListener('change', () => {
+            if (this.milestoneCheck?.checked) {
+                if (this.durInput) this.durInput.value = '0';
+            } else {
+                if (this.durInput && this.durInput.value === '0') this.durInput.value = '1';
+            }
+            this.recalculateWorkAndProgress();
+        });
+
+        this.completedCheck.addEventListener('change', () => {
+            if (this.completedCheck?.checked) {
+                if (this.actualFinishInput && !this.actualFinishInput.value) {
+                    this.actualFinishInput.value = new Date().toISOString().slice(0, 10);
+                }
+            }
+            this.recalculateWorkAndProgress();
         });
 
         // Footer Actions
@@ -302,14 +331,58 @@ export class TaskInformationModal extends Modal {
         });
     }
 
+    private recalculateWorkAndProgress(): void {
+        const isMilestone = this.milestoneCheck?.checked || false;
+        const isCompleted = this.completedCheck?.checked || false;
+        const durVal = parseInt(this.durInput?.value || '1', 10);
+        const durationDays = isMilestone ? 0 : Math.max(0, durVal);
+
+        // Planned Work derivation
+        let plannedWork = 0;
+        if (!isMilestone) {
+            if (this.task.workHours !== undefined && this.task.workHours !== (this.task.durationDays * 8)) {
+                plannedWork = this.task.workHours;
+            } else {
+                plannedWork = durationDays * 8;
+            }
+        }
+
+        const rawAct = this.actualWorkInput?.value.trim();
+        const actualWork = (rawAct !== undefined && rawAct !== '') ? Math.max(0, parseFloat(rawAct) || 0) : 0;
+
+        // Remaining Work: max(0, Planned Work - Actual Work)
+        const remainingWork = plannedWork > 0 ? Math.max(0, plannedWork - actualWork) : 0;
+
+        // Actual % Complete canonical derivation:
+        // If Planned Work > 0: min(100, round(Actual Work / Planned Work * 100))
+        // If Planned Work == 0: 100% if completed, 0% otherwise (no division by zero)
+        let percentComplete = 0;
+        if (plannedWork > 0) {
+            percentComplete = Math.min(100, Math.round((actualWork / plannedWork) * 100));
+        } else {
+            percentComplete = isCompleted ? 100 : 0;
+        }
+
+        if (this.plannedWorkInput) {
+            this.plannedWorkInput.value = `${plannedWork}h`;
+        }
+        if (this.remainingWorkInput) {
+            this.remainingWorkInput.value = `${remainingWork}h`;
+        }
+        if (this.progressInput) {
+            this.progressInput.value = `${percentComplete}%`;
+        }
+    }
+
     private async save(): Promise<void> {
         const rawTitle = this.titleInput?.value.trim() || this.task.cleanTitle;
         const title = rawTitle.replace(/^(\s*-\s*\[[ xX]\]\s*)+/g, '').trim();
         const description = this.descInput?.value.trim() || undefined;
         const startDate = this.startInput?.value || undefined;
         const dueDate = this.dueInput?.value || undefined;
-        const durationDays = parseInt(this.durInput?.value || '1', 10);
+        const durVal = parseInt(this.durInput?.value || '1', 10);
         const isMilestone = this.milestoneCheck?.checked || false;
+        const durationDays = isMilestone ? 0 : durVal;
         const completed = this.completedCheck?.checked || false;
 
         const rawResource = this.resInput?.value.trim().replace(/^@/, '') || undefined;
@@ -320,15 +393,31 @@ export class TaskInformationModal extends Modal {
 
         const actualStart = this.actualStartInput?.value || undefined;
         const actualFinish = this.actualFinishInput?.value || undefined;
-        const actualWork = this.actualWorkInput?.value ? parseFloat(this.actualWorkInput.value) : undefined;
-        const percentComplete = this.progressInput?.value ? parseInt(this.progressInput.value, 10) : undefined;
+        const rawAct = this.actualWorkInput?.value.trim();
+        const actualWork = (rawAct !== undefined && rawAct !== '') ? Math.max(0, parseFloat(rawAct) || 0) : undefined;
+        const actualWorkNum = actualWork !== undefined ? actualWork : 0;
+
+        // Planned work for canonical % Complete calculation
+        let plannedWork = 0;
+        if (!isMilestone) {
+            if (this.task.workHours !== undefined && this.task.workHours !== (this.task.durationDays * 8)) {
+                plannedWork = this.task.workHours;
+            } else {
+                plannedWork = durationDays * 8;
+            }
+        }
+
+        // Canonical % Complete derivation (guarantees consistency)
+        const percentComplete = plannedWork > 0
+            ? Math.min(100, Math.round((actualWorkNum / plannedWork) * 100))
+            : (completed ? 100 : 0);
 
         await this.projectManager.updateTaskDetails(this.projectFile, this.task.lineIndex, {
             title,
             description,
             startDate,
             dueDate,
-            durationDays: isMilestone ? 0 : durationDays,
+            durationDays,
             resource: rawResource,
             predecessors,
             isMilestone,
@@ -569,6 +658,14 @@ export class ProjectGanttView extends ItemView {
     private resourceUsageStartOffset = 0; // Timeline window offset in days
     private expandedResources: Set<string> = new Set();
 
+    // Task Sheet Discovery & Ergonomics state (Phase 1)
+    private taskSheetFilterState: TaskSheetFilterState = TaskDiscoveryEngine.getDefaultFilterState();
+    private taskSheetGroupingMode: TaskGroupingMode = 'wbs';
+    private taskSheetActiveSavedViewId: string = 'default';
+    private taskSheetSearchDebounceTimer: number | null = null;
+    private searchInputFocusedBeforeRender = false;
+    private searchInputCursorPosition: number | null = null;
+
     // DOM references for sync scrolling
     private wbsBodyEl: HTMLElement | null = null;
     private timelineBodyEl: HTMLElement | null = null;
@@ -578,6 +675,77 @@ export class ProjectGanttView extends ItemView {
         super(leaf);
         this.plugin = plugin;
         this.projectManager = new ProjectManager(this.app);
+        this.commandManager = new ProjectCommandManager();
+
+        // Ensure clicking anywhere inside the view gives the leaf focus/active status in Obsidian workspace
+        this.containerEl.tabIndex = -1;
+        this.containerEl.style.outline = 'none';
+        this.containerEl.addEventListener('pointerdown', () => {
+            if (this.app.workspace.activeLeaf !== this.leaf) {
+                this.app.workspace.setActiveLeaf(this.leaf, { focus: true });
+            }
+        });
+
+        // Initialize scoped hotkey management
+        this.setupViewScope();
+    }
+
+    private setupViewScope(): void {
+        this.scope = new Scope(this.app.scope);
+
+        // Native Obsidian View Scope: active strictly when this view is in focus / active leaf
+        this.scope.register(['Mod'], 'f', (evt: KeyboardEvent) => {
+            if (this.activeView === 'task-sheet') {
+                const searchInput = this.contentEl.querySelector<HTMLInputElement>('.timebox-sheet-search-input');
+                if (searchInput) {
+                    evt.preventDefault();
+                    searchInput.focus();
+                    searchInput.select();
+                    return; // Consumed!
+                }
+            }
+            // Return false allows normal Obsidian Find to operate in Gantt, Summary, Resource Sheet, etc.
+            return false;
+        });
+
+        // Fallback for keydown within containerEl
+        this.containerEl.addEventListener('keydown', (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && (e.key === 'f' || e.key === 'F') && !e.shiftKey && !e.altKey) {
+                if (this.activeView === 'task-sheet') {
+                    const searchInput = this.contentEl.querySelector<HTMLInputElement>('.timebox-sheet-search-input');
+                    if (searchInput) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        searchInput.focus();
+                        searchInput.select();
+                    }
+                }
+            }
+        });
+    }
+
+    onload(): void {
+        super.onload();
+        if (!this.scope) {
+            this.setupViewScope();
+        }
+
+        // Window-level fallback in bubble phase (false): strictly scoped so other views/editors remain unaffected
+        this.registerDomEvent(window, 'keydown', (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && (e.key === 'f' || e.key === 'F') && !e.shiftKey && !e.altKey) {
+                const isLeafActive = this.app.workspace.activeLeaf?.view === this;
+                const containsFocus = this.containerEl.contains(document.activeElement);
+                if (this.activeView === 'task-sheet' && (isLeafActive || containsFocus)) {
+                    const searchInput = this.contentEl.querySelector<HTMLInputElement>('.timebox-sheet-search-input');
+                    if (searchInput) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        searchInput.focus();
+                        searchInput.select();
+                    }
+                }
+            }
+        }, false);
     }
 
     getViewType(): string {
@@ -1029,7 +1197,7 @@ export class ProjectGanttView extends ItemView {
         const rightGroup = toolbarEl.createDiv({ cls: 'timebox-gantt-toolbar-right' });
 
         const quickAddBtn = rightGroup.createEl('button', {
-            cls: 'timebox-gantt-action-btn',
+            cls: 'timebox-btn-primary',
             text: '+ Task'
         });
         quickAddBtn.title = 'Add new task (or use inline add row below)';
@@ -1038,7 +1206,7 @@ export class ProjectGanttView extends ItemView {
         });
 
         const addSubtaskBtn = rightGroup.createEl('button', {
-            cls: 'timebox-gantt-action-btn',
+            cls: 'timebox-btn-secondary',
             text: '+ Subtask'
         });
         addSubtaskBtn.title = 'Add subtask under selected task';
@@ -2623,7 +2791,352 @@ export class ProjectGanttView extends ItemView {
     private renderTaskSheet(container: HTMLElement, projectData: ProjectData, rows: FlattenedGanttRow[]): void {
         const sheetEl = container.createDiv({ cls: 'timebox-task-sheet-pane' });
 
-        // Action Toolbar
+        // Scoped Cmd+F / Ctrl+F handler for predictable search in Task Sheet without Obsidian conflict
+        sheetEl.tabIndex = -1;
+        sheetEl.addEventListener('keydown', (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+                e.preventDefault();
+                e.stopPropagation();
+                const searchInput = sheetEl.querySelector<HTMLInputElement>('.timebox-sheet-search-input');
+                if (searchInput) {
+                    searchInput.focus();
+                    searchInput.select();
+                }
+            }
+        });
+
+        // Initialize state from settings if present
+        if (this.plugin?.settings) {
+            if (this.plugin.settings.taskSheetGroupingMode && !this.taskSheetGroupingMode) {
+                this.taskSheetGroupingMode = this.plugin.settings.taskSheetGroupingMode;
+            }
+            if (this.plugin.settings.taskSheetActiveSavedViewId && !this.taskSheetActiveSavedViewId) {
+                this.taskSheetActiveSavedViewId = this.plugin.settings.taskSheetActiveSavedViewId;
+            }
+        }
+
+        const currentUserId = this.plugin?.settings?.taskSheetCurrentUserId || '';
+        const savedViews = (this.plugin?.settings?.taskSheetSavedViews && this.plugin.settings.taskSheetSavedViews.length > 0)
+            ? this.plugin.settings.taskSheetSavedViews
+            : DEFAULT_SAVED_VIEWS;
+
+        // Obtain resource usage map if project normalized data is available (for over-allocation detection)
+        let usageMap: Map<string, ResourceUsageSummary> | undefined;
+        const projectResources = projectData.normalizedProject?.resources || [];
+        if (projectData.normalizedProject) {
+            try {
+                const calDef = projectData.normalizedProject.calendars.find(c => c.id === projectData.normalizedProject!.activeCalendarId)
+                    || projectData.normalizedProject.calendars[0]
+                    || ProjectCalendar.createStandardCalendar().toDefinition();
+                const calendar = ProjectCalendar.fromDefinition(calDef);
+                usageMap = ResourceEngine.analyze(projectData.normalizedProject, calendar);
+            } catch {}
+        }
+
+        // Apply fast in-memory search and filters (zero markdown parsing, zero CPM recalculation)
+        const isWbsMode = this.taskSheetGroupingMode === 'wbs';
+        const { filteredRows, directMatchCount } = TaskDiscoveryEngine.filterRows(
+            rows,
+            this.taskSheetFilterState,
+            currentUserId,
+            isWbsMode
+        );
+
+        // Group rows based on selected grouping mode
+        const sections = TaskDiscoveryEngine.groupRows(
+            filteredRows,
+            this.taskSheetGroupingMode,
+            projectResources,
+            usageMap
+        );
+
+        const isFilterActive = TaskDiscoveryEngine.isFilterActive(this.taskSheetFilterState);
+        const totalTaskCount = rows.length;
+
+        // =========================================================================
+        // 1. DISCOVERY DECK TOOLBAR
+        // =========================================================================
+        const discoveryDeck = sheetEl.createDiv({ cls: 'timebox-discovery-deck' });
+
+        // Row 1: Search, Saved Views, Counter, Clear
+        const row1 = discoveryDeck.createDiv({ cls: 'timebox-discovery-row timebox-discovery-main-row' });
+
+        // Search Box
+        const searchBox = row1.createDiv({ cls: 'timebox-search-container' });
+        const searchInput = searchBox.createEl('input', {
+            type: 'text',
+            cls: 'timebox-sheet-search-input',
+            placeholder: '🔍 Search tasks (title, WBS, resource, status)...',
+            value: this.taskSheetFilterState.searchQuery
+        });
+
+        if (this.taskSheetFilterState.searchQuery) {
+            const clearSearchBtn = searchBox.createEl('button', {
+                cls: 'timebox-search-clear-btn',
+                text: '✕'
+            });
+            clearSearchBtn.addEventListener('click', () => {
+                this.taskSheetFilterState.searchQuery = '';
+                this.render();
+            });
+        }
+
+        searchInput.addEventListener('input', () => {
+            if (this.taskSheetSearchDebounceTimer) {
+                window.clearTimeout(this.taskSheetSearchDebounceTimer);
+            }
+            this.taskSheetSearchDebounceTimer = window.setTimeout(() => {
+                this.taskSheetFilterState.searchQuery = searchInput.value;
+                this.searchInputFocusedBeforeRender = true;
+                this.searchInputCursorPosition = searchInput.selectionStart;
+                this.render();
+            }, 150);
+        });
+
+        searchInput.addEventListener('keydown', (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                searchInput.value = '';
+                this.taskSheetFilterState.searchQuery = '';
+                this.render();
+            }
+        });
+
+        // Restore focus if search was active before re-rendering
+        if (this.searchInputFocusedBeforeRender) {
+            this.searchInputFocusedBeforeRender = false;
+            setTimeout(() => {
+                searchInput.focus();
+                if (this.searchInputCursorPosition !== null) {
+                    searchInput.setSelectionRange(this.searchInputCursorPosition, this.searchInputCursorPosition);
+                    this.searchInputCursorPosition = null;
+                }
+            }, 0);
+        }
+
+        // Saved Views Selector
+        const savedViewContainer = row1.createDiv({ cls: 'timebox-saved-views-container' });
+        savedViewContainer.createSpan({ cls: 'timebox-control-label', text: 'View:' });
+        const viewSelect = savedViewContainer.createEl('select', { cls: 'dropdown timebox-saved-view-select' });
+
+        let matchingViewFound = false;
+        for (const sv of savedViews) {
+            const opt = viewSelect.createEl('option', { value: sv.id, text: sv.name });
+            if (sv.id === this.taskSheetActiveSavedViewId) {
+                opt.selected = true;
+                matchingViewFound = true;
+            }
+        }
+        if (!matchingViewFound) {
+            const customOpt = viewSelect.createEl('option', { value: 'custom', text: 'Custom View' });
+            customOpt.selected = true;
+        }
+
+        viewSelect.addEventListener('change', async () => {
+            const selectedId = viewSelect.value;
+            const viewDef = savedViews.find(v => v.id === selectedId);
+            if (viewDef) {
+                this.taskSheetFilterState = { ...viewDef.filterState };
+                this.taskSheetGroupingMode = viewDef.groupingMode;
+                this.taskSheetActiveSavedViewId = viewDef.id;
+                if (this.plugin?.settings) {
+                    this.plugin.settings.taskSheetActiveSavedViewId = viewDef.id;
+                    this.plugin.settings.taskSheetGroupingMode = viewDef.groupingMode;
+                    this.plugin.settings.taskSheetVisibleColumns = [...viewDef.visibleColumnIds];
+                    await this.plugin.saveSettings();
+                }
+                this.render();
+            }
+        });
+
+        // Save View Action Button
+        const saveViewBtn = savedViewContainer.createEl('button', {
+            cls: 'timebox-save-view-btn',
+            text: '💾 Save View'
+        });
+        saveViewBtn.addEventListener('click', () => {
+            new SavedViewModal(
+                this.app,
+                savedViews,
+                this.taskSheetFilterState,
+                this.getTaskSheetVisibleColumns(),
+                this.taskSheetGroupingMode,
+                async (updatedViews, selectedViewId) => {
+                    if (this.plugin?.settings) {
+                        this.plugin.settings.taskSheetSavedViews = updatedViews;
+                        this.plugin.settings.taskSheetActiveSavedViewId = selectedViewId;
+                        this.plugin.settings.taskSheetGroupingMode = this.taskSheetGroupingMode;
+                        this.plugin.settings.taskSheetVisibleColumns = [...this.getTaskSheetVisibleColumns()];
+                        await this.plugin.saveSettings();
+                    }
+                    this.taskSheetActiveSavedViewId = selectedViewId;
+                    this.render();
+                }
+            ).open();
+        });
+
+        // Result Counter
+        const counterBox = row1.createDiv({ cls: 'timebox-discovery-counter-box' });
+        counterBox.createSpan({
+            cls: 'timebox-discovery-counter',
+            text: `Showing ${directMatchCount} of ${totalTaskCount} tasks`
+        });
+        if (isFilterActive) {
+            counterBox.createSpan({
+                cls: 'timebox-filter-badge',
+                text: `${totalTaskCount - directMatchCount} hidden`
+            });
+        }
+
+        // Clear Filters Action
+        if (isFilterActive) {
+            const clearBtn = row1.createEl('button', {
+                cls: 'timebox-clear-filters-btn',
+                text: '✕ Clear Filters'
+            });
+            clearBtn.addEventListener('click', () => {
+                this.taskSheetFilterState = TaskDiscoveryEngine.getDefaultFilterState();
+                this.taskSheetActiveSavedViewId = 'default';
+                this.render();
+            });
+        }
+
+        // Row 2: Quick Filter Chips, Status & Resource Dropdowns, Grouping
+        const row2 = discoveryDeck.createDiv({ cls: 'timebox-discovery-row timebox-discovery-filters-row' });
+
+        // Quick Filter Chips (Composable toggleable states with AND logic)
+        const chipsContainer = row2.createDiv({ cls: 'timebox-filter-chips' });
+        const quickFilters: Array<{ id: QuickFilterType; label: string }> = [
+            { id: 'critical', label: '⚡ Critical' },
+            { id: 'slipped', label: '⚠️ Slipped' },
+            { id: 'assigned-me', label: '👤 My Tasks' },
+            { id: 'milestones', label: '🚩 Milestones' },
+            { id: 'unassigned', label: 'Unassigned' }
+        ];
+
+        const activeQuick = TaskDiscoveryEngine.getActiveQuickFilters(this.taskSheetFilterState);
+
+        // "All" chip clears all quick filters
+        const allChip = chipsContainer.createEl('button', {
+            cls: `timebox-chip ${activeQuick.length === 0 ? 'is-active' : ''}`,
+            text: 'All'
+        });
+        allChip.addEventListener('click', () => {
+            this.taskSheetFilterState.quickFilters = [];
+            this.render();
+        });
+
+        for (const qf of quickFilters) {
+            const isActive = activeQuick.includes(qf.id);
+            const chip = chipsContainer.createEl('button', {
+                cls: `timebox-chip ${isActive ? 'is-active' : ''}`,
+                text: qf.label
+            });
+            chip.addEventListener('click', () => {
+                const current = [...TaskDiscoveryEngine.getActiveQuickFilters(this.taskSheetFilterState)];
+                const idx = current.indexOf(qf.id);
+                if (idx >= 0) {
+                    current.splice(idx, 1); // toggle OFF
+                } else {
+                    current.push(qf.id); // toggle ON
+                }
+                this.taskSheetFilterState.quickFilters = current;
+                this.render();
+            });
+        }
+
+        // Dropdowns: Status and Resource
+        const dropdownsContainer = row2.createDiv({ cls: 'timebox-filter-dropdowns' });
+
+        // Status Dropdown
+        const statusSelect = dropdownsContainer.createEl('select', { cls: 'dropdown timebox-status-filter-select' });
+        const statusOptions: Array<{ id: TaskStatusFilter; label: string }> = [
+            { id: 'all', label: 'Status: All' },
+            { id: 'not-started', label: 'Not Started' },
+            { id: 'in-progress', label: 'In Progress' },
+            { id: 'completed', label: 'Completed' }
+        ];
+        for (const sOpt of statusOptions) {
+            const opt = statusSelect.createEl('option', { value: sOpt.id, text: sOpt.label });
+            if (this.taskSheetFilterState.statusFilter === sOpt.id) {
+                opt.selected = true;
+            }
+        }
+        statusSelect.addEventListener('change', () => {
+            this.taskSheetFilterState.statusFilter = statusSelect.value as TaskStatusFilter;
+            this.render();
+        });
+
+        // Resource Dropdown
+        const resourceSelect = dropdownsContainer.createEl('select', { cls: 'dropdown timebox-resource-filter-select' });
+        const allResOpt = resourceSelect.createEl('option', { value: 'all', text: 'Resource: All' });
+        if (this.taskSheetFilterState.resourceFilter === 'all') allResOpt.selected = true;
+
+        const unassignedOpt = resourceSelect.createEl('option', { value: 'unassigned', text: 'Unassigned' });
+        if (this.taskSheetFilterState.resourceFilter === 'unassigned') unassignedOpt.selected = true;
+
+        // Discovered resources in project and tasks
+        const discoveredRes = new Set<string>();
+        for (const r of projectResources) {
+            discoveredRes.add(r.id);
+        }
+        for (const row of rows) {
+            if (row.resource) discoveredRes.add(row.resource);
+        }
+        if (projectData.normalizedProject) {
+            for (const t of projectData.normalizedProject.tasks) {
+                if (t.assignments) {
+                    for (const a of t.assignments) {
+                        discoveredRes.add(a.resourceId);
+                    }
+                }
+            }
+        }
+
+        for (const resId of Array.from(discoveredRes).sort()) {
+            const resDef = projectResources.find(r => r.id.toLowerCase() === resId.toLowerCase());
+            const label = resDef?.name ? `@${resDef.name} (${resId})` : `@${resId}`;
+            const opt = resourceSelect.createEl('option', { value: resId, text: label });
+            if (this.taskSheetFilterState.resourceFilter.toLowerCase() === resId.toLowerCase()) {
+                opt.selected = true;
+            }
+        }
+
+        resourceSelect.addEventListener('change', () => {
+            this.taskSheetFilterState.resourceFilter = resourceSelect.value;
+            this.render();
+        });
+
+        // Grouping Switcher
+        const groupContainer = row2.createDiv({ cls: 'timebox-group-segmented-control' });
+        groupContainer.createSpan({ cls: 'timebox-control-label', text: 'Group:' });
+        const segGroup = groupContainer.createDiv({ cls: 'timebox-segmented-group' });
+
+        const groupModes: Array<{ id: TaskGroupingMode; label: string }> = [
+            { id: 'wbs', label: 'WBS' },
+            { id: 'resource', label: 'Resource' },
+            { id: 'status', label: 'Status' }
+        ];
+
+        for (const gm of groupModes) {
+            const btn = segGroup.createEl('button', {
+                cls: `timebox-seg-btn ${this.taskSheetGroupingMode === gm.id ? 'is-active' : ''}`,
+                text: gm.label
+            });
+            btn.addEventListener('click', async () => {
+                this.taskSheetGroupingMode = gm.id;
+                if (this.plugin?.settings) {
+                    this.plugin.settings.taskSheetGroupingMode = gm.id;
+                    await this.plugin.saveSettings();
+                }
+                this.render();
+            });
+        }
+
+        // =========================================================================
+        // 2. ACTION TOOLBAR
+        // =========================================================================
         const actionToolbar = sheetEl.createDiv({ cls: 'timebox-sheet-actions' });
         const addBtn = actionToolbar.createEl('button', {
             cls: 'timebox-gantt-action-btn',
@@ -2657,11 +3170,28 @@ export class ProjectGanttView extends ItemView {
             text: `${rows.length} Tasks | ${projectData.completedCount} Completed | ${projectData.progressPercent}% Overall Progress`
         });
 
+        // =========================================================================
+        // 3. TABLE WRAPPER & ROW RENDERING
+        // =========================================================================
         const visibleColIds = this.getTaskSheetVisibleColumns();
         const activeCols = ALL_TASKSHEET_COLUMNS.filter(c => visibleColIds.includes(c.id));
 
-        // Table Wrapper
         const tableWrapper = sheetEl.createDiv({ cls: 'timebox-task-sheet-wrapper' });
+
+        if (directMatchCount === 0) {
+            const emptyEl = tableWrapper.createDiv({ cls: 'timebox-discovery-empty-state' });
+            emptyEl.createDiv({ cls: 'timebox-discovery-empty-icon', text: '🔍' });
+            emptyEl.createEl('h4', { text: 'No matching tasks found' });
+            emptyEl.createEl('p', { text: 'No tasks match your active search or filter criteria.' });
+            const resetBtn = emptyEl.createEl('button', { cls: 'mod-cta', text: 'Clear All Filters' });
+            resetBtn.addEventListener('click', () => {
+                this.taskSheetFilterState = TaskDiscoveryEngine.getDefaultFilterState();
+                this.taskSheetActiveSavedViewId = 'default';
+                this.render();
+            });
+            return;
+        }
+
         const table = tableWrapper.createEl('table', { cls: 'timebox-task-sheet-table' });
 
         const thead = table.createEl('thead');
@@ -2672,215 +3202,258 @@ export class ProjectGanttView extends ItemView {
         }
 
         const tbody = table.createEl('tbody');
-        rows.forEach((row) => {
-            const tr = tbody.createEl('tr', {
-                cls: `timebox-task-sheet-row ${row.isParent ? 'is-parent-row' : ''} ${row.task.completed ? 'is-completed' : ''} ${row.isCritical ? 'is-critical-row' : ''}`
-            });
 
-            // Double click opens info modal
-            tr.addEventListener('dblclick', () => {
-                new TaskInformationModal(
-                    this.app,
-                    projectData.file,
-                    row.task,
-                    this.projectManager,
-                    () => void this.render()
-                ).open();
-            });
+        if (this.taskSheetGroupingMode === 'wbs') {
+            // WBS Outline Hierarchy Rendering
+            for (const row of filteredRows) {
+                this.renderTaskSheetRow(tbody, row, projectData, activeCols);
+            }
+        } else {
+            // Section-Grouped Rendering (Resource or Status)
+            for (const section of sections) {
+                if (section.rows.length === 0) continue;
 
-            for (const col of activeCols) {
-                switch (col.id) {
-                    case 'wbs':
-                        tr.createEl('td', { cls: 'col-wbs', text: row.wbsCode });
-                        break;
-                    case 'status': {
-                        const checkTd = tr.createEl('td', { cls: 'col-check' });
-                        const chk = checkTd.createEl('input', { type: 'checkbox' });
-                        chk.checked = row.task.completed;
-                        chk.disabled = row.isBlocked && !row.task.completed;
-                        if (row.isBlocked && !row.task.completed) {
-                            checkTd.title = 'Locked: predecessors incomplete';
-                        }
-                        chk.addEventListener('change', () => {
-                            void (async () => {
-                                await this.projectManager.toggleProjectTaskCompletion(projectData.file, row.task.lineIndex, chk.checked);
-                                void this.render();
-                            })();
-                        });
-                        break;
-                    }
-                    case 'name': {
-                        const nameTd = tr.createEl('td', { cls: 'col-name' });
-                        const indentPx = row.isSubtask ? 20 : 0;
-                        nameTd.setCssStyles({ paddingLeft: `${10 + indentPx}px` });
-                        nameTd.createSpan({ cls: 'timebox-sheet-task-title', text: row.task.cleanTitle });
-                        if (row.isMilestone) {
-                            nameTd.createSpan({ cls: 'timebox-sheet-milestone-badge', text: '◆ Milestone' });
-                        }
-                        break;
-                    }
-                    case 'description':
-                        tr.createEl('td', { cls: 'col-desc', text: row.description || '-' });
-                        break;
-                    case 'startDate':
-                        tr.createEl('td', { cls: 'col-start', text: row.startDate || row.plannedStart || '-' });
-                        break;
-                    case 'dueDate':
-                        tr.createEl('td', { cls: 'col-due', text: row.dueDate || row.plannedFinish || '-' });
-                        break;
-                    case 'duration':
-                        tr.createEl('td', { cls: 'col-dur', text: `${row.durationDays}d` });
-                        break;
-                    case 'work':
-                        tr.createEl('td', { cls: 'col-work', text: `${row.workHours}h` });
-                        break;
-                    case 'actualStart':
-                        tr.createEl('td', { cls: 'col-actual-start', text: row.actualStart || '-' });
-                        break;
-                    case 'actualFinish':
-                        tr.createEl('td', { cls: 'col-actual-finish', text: row.actualFinish || '-' });
-                        break;
-                    case 'actualWork':
-                        tr.createEl('td', { cls: 'col-actual-work', text: row.actualWork !== undefined ? `${row.actualWork}h` : '-' });
-                        break;
-                    case 'forecastStart':
-                        tr.createEl('td', { cls: 'col-forecast-start', text: row.forecastStart || '-' });
-                        break;
-                    case 'forecastFinish': {
-                        const ffTd = tr.createEl('td', { cls: 'col-forecast-finish' });
-                        if (row.forecastFinish) {
-                            const isSlip = row.dueDate && row.forecastFinish > row.dueDate;
-                            ffTd.createSpan({
-                                cls: isSlip ? 'timebox-forecast-slip' : '',
-                                text: row.forecastFinish
-                            });
-                        } else {
-                            ffTd.setText('-');
-                        }
-                        break;
-                    }
-                    case 'baselineStart':
-                        tr.createEl('td', { cls: 'col-baseline-start', text: row.baselineStart || '-' });
-                        break;
-                    case 'baselineFinish':
-                        tr.createEl('td', { cls: 'col-baseline-finish', text: row.baselineFinish || '-' });
-                        break;
-                    case 'startVariance': {
-                        const svTd = tr.createEl('td', { cls: 'col-var-start' });
-                        const sv = row.task.variance?.startVariance;
-                        if (sv !== undefined) {
-                            const sign = sv > 0 ? `+${sv}d` : `${sv}d`;
-                            const cls = sv > 0 ? 'timebox-variance-late' : (sv < 0 ? 'timebox-variance-early' : 'timebox-variance-zero');
-                            svTd.createSpan({ cls, text: sign });
-                        } else {
-                            svTd.setText('-');
-                        }
-                        break;
-                    }
-                    case 'finishVariance': {
-                        const fvTd = tr.createEl('td', { cls: 'col-var-finish' });
-                        const fv = row.task.variance?.finishVariance;
-                        if (fv !== undefined) {
-                            const sign = fv > 0 ? `+${fv}d` : `${fv}d`;
-                            const cls = fv > 0 ? 'timebox-variance-late' : (fv < 0 ? 'timebox-variance-early' : 'timebox-variance-zero');
-                            fvTd.createSpan({ cls, text: sign });
-                        } else {
-                            fvTd.setText('-');
-                        }
-                        break;
-                    }
-                    case 'durationVariance': {
-                        const dvTd = tr.createEl('td', { cls: 'col-var-dur' });
-                        const dv = row.task.variance?.durationVariance;
-                        if (dv !== undefined) {
-                            const sign = dv > 0 ? `+${dv}d` : `${dv}d`;
-                            const cls = dv > 0 ? 'timebox-variance-late' : (dv < 0 ? 'timebox-variance-early' : 'timebox-variance-zero');
-                            dvTd.createSpan({ cls, text: sign });
-                        } else {
-                            dvTd.setText('-');
-                        }
-                        break;
-                    }
-                    case 'workVariance': {
-                        const wvTd = tr.createEl('td', { cls: 'col-var-work' });
-                        const wv = row.task.variance?.workVariance;
-                        if (wv !== undefined) {
-                            const sign = wv > 0 ? `+${wv}h` : `${wv}h`;
-                            const cls = wv > 0 ? 'timebox-variance-late' : (wv < 0 ? 'timebox-variance-early' : 'timebox-variance-zero');
-                            wvTd.createSpan({ cls, text: sign });
-                        } else {
-                            wvTd.setText('-');
-                        }
-                        break;
-                    }
-                    case 'costVariance': {
-                        const cvTd = tr.createEl('td', { cls: 'col-var-cost' });
-                        const cv = row.task.variance?.costVariance;
-                        if (cv !== undefined) {
-                            const sign = cv > 0 ? `+$${cv}` : (cv < 0 ? `-$${Math.abs(cv)}` : '$0');
-                            const cls = cv > 0 ? 'timebox-variance-late' : (cv < 0 ? 'timebox-variance-early' : 'timebox-variance-zero');
-                            cvTd.createSpan({ cls, text: sign });
-                        } else {
-                            cvTd.setText('-');
-                        }
-                        break;
-                    }
-                    case 'predecessors':
-                        tr.createEl('td', { cls: 'col-pred', text: row.predecessors.join(', ') || '-' });
-                        break;
-                    case 'resource': {
-                        const resTd = tr.createEl('td', { cls: 'col-res' });
-                        if (row.resource) {
-                            resTd.createSpan({ cls: 'timebox-sheet-resource-badge', text: `@${row.resource}` });
-                        } else {
-                            resTd.setText('-');
-                        }
-                        break;
-                    }
-                    case 'percentComplete': {
-                        const compTd = tr.createEl('td', { cls: 'col-pct' });
-                        compTd.createSpan({ text: `${row.percentComplete}%` });
-                        break;
-                    }
-                    case 'totalFloat': {
-                        const tfTd = tr.createEl('td', { cls: 'col-float' });
-                        if (row.totalFloat === 0 && !row.task.completed) {
-                            tfTd.createSpan({ cls: 'timebox-float-badge is-zero', text: '0d' });
-                        } else {
-                            tfTd.setText(`${row.totalFloat}d`);
-                        }
-                        break;
-                    }
-                    case 'freeFloat':
-                        tr.createEl('td', { cls: 'col-free-float', text: `${row.freeFloat}d` });
-                        break;
-                    case 'critical': {
-                        const critTd = tr.createEl('td', { cls: 'col-crit' });
-                        if (row.isCritical && !row.task.completed) {
-                            critTd.createSpan({ cls: 'timebox-critical-badge', text: '⚡ YES' });
-                        } else {
-                            critTd.setText('-');
-                        }
-                        break;
-                    }
-                    case 'actions': {
-                        const actTd = tr.createEl('td', { cls: 'col-act' });
-                        const editBtn = actTd.createEl('button', { cls: 'timebox-task-icon-btn', title: 'Edit details' });
-                        setIcon(editBtn, 'sliders');
-                        editBtn.addEventListener('click', () => {
-                            new TaskInformationModal(
-                                this.app,
-                                projectData.file,
-                                row.task,
-                                this.projectManager,
-                                () => void this.render()
-                            ).open();
-                        });
-                        break;
-                    }
+                // Section Header Row
+                const headerTr = tbody.createEl('tr', { cls: 'timebox-sheet-group-header-row' });
+                const headerTd = headerTr.createEl('td', { cls: 'timebox-sheet-group-header-cell' });
+                headerTd.colSpan = activeCols.length;
+
+                const content = headerTd.createDiv({ cls: 'timebox-sheet-group-header-content' });
+                content.createSpan({ cls: 'timebox-sheet-group-title', text: section.title });
+                if (section.badgeText) {
+                    content.createSpan({ cls: 'timebox-sheet-group-sub', text: section.badgeText });
+                }
+                content.createSpan({ cls: 'timebox-sheet-group-count', text: `${section.taskCount} tasks • ${section.totalWorkHours}h` });
+                if (section.isOverAllocated) {
+                    content.createSpan({ cls: 'timebox-sheet-group-overallocation', text: '⚠️ OVER-ALLOCATED' });
+                }
+
+                // Section Rows
+                for (const row of section.rows) {
+                    this.renderTaskSheetRow(tbody, row, projectData, activeCols);
                 }
             }
+        }
+    }
+
+    private renderTaskSheetRow(
+        tbody: HTMLElement,
+        row: FlattenedGanttRow,
+        projectData: ProjectData,
+        activeCols: TaskSheetColumnDef[]
+    ): void {
+        const isAncestor = !!row.isAncestorOfMatch;
+        const tr = tbody.createEl('tr', {
+            cls: `timebox-task-sheet-row ${row.isParent ? 'is-parent-row' : ''} ${row.task.completed ? 'is-completed' : ''} ${row.isCritical ? 'is-critical-row' : ''} ${isAncestor ? 'is-ancestor-context' : ''}`
         });
+
+        if (isAncestor) {
+            tr.title = 'Hierarchy context: parent outline for matching child tasks';
+        }
+
+        // Double click opens info modal
+        tr.addEventListener('dblclick', () => {
+            new TaskInformationModal(
+                this.app,
+                projectData.file,
+                row.task,
+                this.projectManager,
+                () => void this.render()
+            ).open();
+        });
+
+        for (const col of activeCols) {
+            switch (col.id) {
+                case 'wbs':
+                    tr.createEl('td', { cls: 'col-wbs', text: row.wbsCode });
+                    break;
+                case 'status': {
+                    const checkTd = tr.createEl('td', { cls: 'col-check' });
+                    const chk = checkTd.createEl('input', { type: 'checkbox' });
+                    chk.checked = row.task.completed;
+                    chk.disabled = row.isBlocked && !row.task.completed;
+                    if (row.isBlocked && !row.task.completed) {
+                        checkTd.title = 'Locked: predecessors incomplete';
+                    }
+                    chk.addEventListener('change', () => {
+                        void (async () => {
+                            await this.projectManager.toggleProjectTaskCompletion(projectData.file, row.task.lineIndex, chk.checked);
+                            void this.render();
+                        })();
+                    });
+                    break;
+                }
+                case 'name': {
+                    const nameTd = tr.createEl('td', { cls: 'col-name' });
+                    const indentPx = (this.taskSheetGroupingMode === 'wbs' && row.isSubtask) ? 20 : 0;
+                    nameTd.setCssStyles({ paddingLeft: `${10 + indentPx}px` });
+                    nameTd.createSpan({ cls: 'timebox-sheet-task-title', text: row.task.cleanTitle });
+                    if (row.isMilestone) {
+                        nameTd.createSpan({ cls: 'timebox-sheet-milestone-badge', text: '◆ Milestone' });
+                    }
+                    break;
+                }
+                case 'description':
+                    tr.createEl('td', { cls: 'col-desc', text: row.description || '-' });
+                    break;
+                case 'startDate':
+                    tr.createEl('td', { cls: 'col-start', text: row.startDate || row.plannedStart || '-' });
+                    break;
+                case 'dueDate':
+                    tr.createEl('td', { cls: 'col-due', text: row.dueDate || row.plannedFinish || '-' });
+                    break;
+                case 'duration':
+                    tr.createEl('td', { cls: 'col-dur', text: `${row.durationDays}d` });
+                    break;
+                case 'work':
+                    tr.createEl('td', { cls: 'col-work timebox-readonly-cell', text: `${row.workHours}h` });
+                    break;
+                case 'actualStart':
+                    tr.createEl('td', { cls: 'col-actual-start', text: row.actualStart || '-' });
+                    break;
+                case 'actualFinish':
+                    tr.createEl('td', { cls: 'col-actual-finish', text: row.actualFinish || '-' });
+                    break;
+                case 'actualWork':
+                    tr.createEl('td', { cls: 'col-actual-work', text: row.actualWork !== undefined ? `${row.actualWork}h` : '-' });
+                    break;
+                case 'forecastStart':
+                    tr.createEl('td', { cls: 'col-forecast-start timebox-readonly-cell', text: row.forecastStart || '-' });
+                    break;
+                case 'forecastFinish': {
+                    const ffTd = tr.createEl('td', { cls: 'col-forecast-finish timebox-readonly-cell' });
+                    if (row.forecastFinish) {
+                        const isSlip = row.dueDate && row.forecastFinish > row.dueDate;
+                        ffTd.createSpan({
+                            cls: isSlip ? 'timebox-forecast-slip' : '',
+                            text: row.forecastFinish
+                        });
+                    } else {
+                        ffTd.setText('-');
+                    }
+                    break;
+                }
+                case 'baselineStart':
+                    tr.createEl('td', { cls: 'col-baseline-start', text: row.baselineStart || '-' });
+                    break;
+                case 'baselineFinish':
+                    tr.createEl('td', { cls: 'col-baseline-finish', text: row.baselineFinish || '-' });
+                    break;
+                case 'startVariance': {
+                    const svTd = tr.createEl('td', { cls: 'col-var-start timebox-readonly-cell' });
+                    const sv = row.task.variance?.startVariance;
+                    if (sv !== undefined) {
+                        const sign = sv > 0 ? `+${sv}d` : `${sv}d`;
+                        const cls = sv > 0 ? 'timebox-variance-late' : (sv < 0 ? 'timebox-variance-early' : 'timebox-variance-zero');
+                        svTd.createSpan({ cls, text: sign });
+                    } else {
+                        svTd.setText('-');
+                    }
+                    break;
+                }
+                case 'finishVariance': {
+                    const fvTd = tr.createEl('td', { cls: 'col-var-finish timebox-readonly-cell' });
+                    const fv = row.task.variance?.finishVariance;
+                    if (fv !== undefined) {
+                        const sign = fv > 0 ? `+${fv}d` : `${fv}d`;
+                        const cls = fv > 0 ? 'timebox-variance-late' : (fv < 0 ? 'timebox-variance-early' : 'timebox-variance-zero');
+                        fvTd.createSpan({ cls, text: sign });
+                    } else {
+                        fvTd.setText('-');
+                    }
+                    break;
+                }
+                case 'durationVariance': {
+                    const dvTd = tr.createEl('td', { cls: 'col-var-dur timebox-readonly-cell' });
+                    const dv = row.task.variance?.durationVariance;
+                    if (dv !== undefined) {
+                        const sign = dv > 0 ? `+${dv}d` : `${dv}d`;
+                        const cls = dv > 0 ? 'timebox-variance-late' : (dv < 0 ? 'timebox-variance-early' : 'timebox-variance-zero');
+                        dvTd.createSpan({ cls, text: sign });
+                    } else {
+                        dvTd.setText('-');
+                    }
+                    break;
+                }
+                case 'workVariance': {
+                    const wvTd = tr.createEl('td', { cls: 'col-var-work timebox-readonly-cell' });
+                    const wv = row.task.variance?.workVariance;
+                    if (wv !== undefined) {
+                        const sign = wv > 0 ? `+${wv}h` : `${wv}h`;
+                        const cls = wv > 0 ? 'timebox-variance-late' : (wv < 0 ? 'timebox-variance-early' : 'timebox-variance-zero');
+                        wvTd.createSpan({ cls, text: sign });
+                    } else {
+                        wvTd.setText('-');
+                    }
+                    break;
+                }
+                case 'costVariance': {
+                    const cvTd = tr.createEl('td', { cls: 'col-var-cost timebox-readonly-cell' });
+                    const cv = row.task.variance?.costVariance;
+                    if (cv !== undefined) {
+                        const sign = cv > 0 ? `+$${cv}` : (cv < 0 ? `-$${Math.abs(cv)}` : '$0');
+                        const cls = cv > 0 ? 'timebox-variance-late' : (cv < 0 ? 'timebox-variance-early' : 'timebox-variance-zero');
+                        cvTd.createSpan({ cls, text: sign });
+                    } else {
+                        cvTd.setText('-');
+                    }
+                    break;
+                }
+                case 'predecessors':
+                    tr.createEl('td', { cls: 'col-pred', text: row.predecessors.join(', ') || '-' });
+                    break;
+                case 'resource': {
+                    const resTd = tr.createEl('td', { cls: 'col-res' });
+                    if (row.resource) {
+                        resTd.createSpan({ cls: 'timebox-sheet-resource-badge', text: `@${row.resource}` });
+                    } else {
+                        resTd.setText('-');
+                    }
+                    break;
+                }
+                case 'percentComplete': {
+                    const compTd = tr.createEl('td', { cls: 'col-pct timebox-readonly-cell' });
+                    compTd.createSpan({ text: `${row.percentComplete}%` });
+                    break;
+                }
+                case 'totalFloat': {
+                    const tfTd = tr.createEl('td', { cls: 'col-float' });
+                    if (row.totalFloat === 0 && !row.task.completed) {
+                        tfTd.createSpan({ cls: 'timebox-float-badge is-zero', text: '0d' });
+                    } else {
+                        tfTd.setText(`${row.totalFloat}d`);
+                    }
+                    break;
+                }
+                case 'freeFloat':
+                    tr.createEl('td', { cls: 'col-free-float', text: `${row.freeFloat}d` });
+                    break;
+                case 'critical': {
+                    const critTd = tr.createEl('td', { cls: 'col-crit' });
+                    if (row.isCritical && !row.task.completed) {
+                        critTd.createSpan({ cls: 'timebox-critical-badge', text: '⚡ YES' });
+                    } else {
+                        critTd.setText('-');
+                    }
+                    break;
+                }
+                case 'actions': {
+                    const actTd = tr.createEl('td', { cls: 'col-act' });
+                    const editBtn = actTd.createEl('button', { cls: 'timebox-task-icon-btn', title: 'Edit details' });
+                    setIcon(editBtn, 'sliders');
+                    editBtn.addEventListener('click', () => {
+                        new TaskInformationModal(
+                            this.app,
+                            projectData.file,
+                            row.task,
+                            this.projectManager,
+                            () => void this.render()
+                        ).open();
+                    });
+                    break;
+                }
+            }
+        }
     }
 
     private renderResourceSheet(container: HTMLElement, projectData: ProjectData, rows: FlattenedGanttRow[]): void {

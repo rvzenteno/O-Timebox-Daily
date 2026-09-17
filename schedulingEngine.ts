@@ -298,6 +298,43 @@ export class SchedulingEngine {
             task.cost = taskCost;
 
             if (!task.isSummary) {
+                // Canonical definition of Actual % Complete:
+                // If Planned Work > 0: Actual % Complete = min(100, Math.round((Actual Work / Planned Work) * 100))
+                // If Planned Work === 0: Do NOT divide by zero. Do NOT invent work hours.
+                // For a zero-work task: if explicitly completed: 100%, otherwise preserve explicit completion state.
+                const actWork = task.actualWorkHours !== undefined ? task.actualWorkHours : task.actualWork;
+                if (task.completed) {
+                    task.percentComplete = 100;
+                } else if (actWork !== undefined) {
+                    if (task.workHours > 0) {
+                        task.percentComplete = Math.min(100, Math.round((actWork / task.workHours) * 100));
+                    } else {
+                        task.percentComplete = task.percentComplete || 0;
+                    }
+                }
+                task.percentWorkComplete = task.percentComplete;
+
+                // Internal Planned Schedule Progress:
+                // "How far through the planned schedule should this task be?"
+                // Based on Planned Start, Planned Finish, Status Date, and Project Calendar.
+                // Distinct from Actual % Complete.
+                const pStart = task.plannedStart || task.calculatedStart;
+                const pFinish = task.plannedFinish || task.calculatedFinish;
+                if (project.statusDate && pStart && pFinish) {
+                    if (project.statusDate < pStart) {
+                        task.scheduleProgress = 0;
+                    } else if (project.statusDate >= pFinish) {
+                        task.scheduleProgress = 100;
+                    } else {
+                        const elapsedDays = Math.max(0, calendar.calculateWorkingDays(pStart, project.statusDate));
+                        task.scheduleProgress = task.durationDays > 0
+                            ? Math.min(100, Math.max(0, Math.round((elapsedDays / task.durationDays) * 100)))
+                            : 0;
+                    }
+                } else {
+                    task.scheduleProgress = 0;
+                }
+
                 totalProjectWork += task.workHours;
                 totalProjectCost += task.cost;
                 totalWorkCompleted += task.workHours * (task.percentComplete / 100);
